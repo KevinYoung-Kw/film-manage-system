@@ -169,7 +169,7 @@ export default function LoginPage() {
       </div>
       
       <footer className="mt-8 text-center text-xs text-slate-500">
-        <p>© 2024 电影票务系统. 保留所有权利。</p>
+        <p>© 2025 电影票务系统. 保留所有权利。</p>
       </footer>
     </div>
   );

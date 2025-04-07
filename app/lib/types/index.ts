@@ -97,4 +97,42 @@ export interface Order {
   paidAt?: Date;
   cancelledAt?: Date;
   refundedAt?: Date;
+}
+
+// 工作人员操作类型
+export enum StaffOperationType {
+  SELL = 'sell',           // 售票
+  CHECK = 'check',         // 检票
+  REFUND = 'refund',       // 退票
+  MODIFY = 'modify'        // 改签
+}
+
+// 工作人员操作记录
+export interface StaffOperation {
+  id: string;
+  staffId: string;         // 操作人员ID
+  orderId?: string;        // 相关订单ID
+  showtimeId?: string;     // 相关场次ID
+  type: StaffOperationType; // 操作类型
+  details: string;         // 操作详情（可以是JSON字符串）
+  createdAt: Date;         // 操作时间
+}
+
+// 排班时段类型
+export enum ShiftType {
+  MORNING = 'morning',     // 早班 (8:00-14:00)
+  AFTERNOON = 'afternoon', // 午班 (14:00-20:00)
+  EVENING = 'evening'      // 晚班 (20:00-次日2:00)
+}
+
+// 工作人员排班信息
+export interface StaffSchedule {
+  id: string;
+  staffId: string;         // 员工ID
+  date: Date;              // 排班日期
+  shift: ShiftType;        // 班次类型
+  position: string;        // 工作岗位 (如"售票"、"检票"等)
+  notes?: string;          // 备注信息
+  createdAt: Date;         // 创建时间
+  updatedAt?: Date;        // 更新时间
 } 

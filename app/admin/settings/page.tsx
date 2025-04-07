@@ -1,0 +1,161 @@
+'use client';
+
+import React, { useState } from 'react';
+import { Settings, Bell, Moon, Globe, Shield, LogOut, ChevronRight, Users, DollarSign, BarChart2 } from 'lucide-react';
+import Link from 'next/link';
+
+export default function SettingsPage() {
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [darkModeEnabled, setDarkModeEnabled] = useState(false);
+  const [language, setLanguage] = useState('中文');
+
+  return (
+    <div className="p-4">
+      <div className="flex items-center mb-6">
+        <Settings size={24} className="text-indigo-600 mr-2" />
+        <h1 className="text-2xl font-bold">系统设置</h1>
+      </div>
+      
+      {/* 账户信息 */}
+      <div className="bg-white rounded-lg shadow p-4 mb-6">
+        <h2 className="font-medium mb-4">账户信息</h2>
+        <div className="flex items-center">
+          <div className="h-16 w-16 bg-gray-200 rounded-full flex items-center justify-center mr-4">
+            <span className="text-2xl font-medium text-gray-600">管</span>
+          </div>
+          <div>
+            <h3 className="font-medium">管理员</h3>
+            <p className="text-sm text-gray-500">admin@example.com</p>
+            <p className="text-xs text-gray-400 mt-1">管理员账户</p>
+          </div>
+        </div>
+      </div>
+      
+      {/* 管理功能入口 */}
+      <div className="bg-white rounded-lg shadow p-4 mb-6">
+        <h2 className="font-medium mb-4">管理功能</h2>
+        
+        <div className="space-y-4">
+          <Link href="/admin/staff" className="flex items-center justify-between py-2 hover:bg-gray-50 px-2 rounded">
+            <div className="flex items-center">
+              <Users size={18} className="text-indigo-600 mr-3" />
+              <span>员工管理</span>
+            </div>
+            <ChevronRight size={16} className="text-gray-400" />
+          </Link>
+          
+          <Link href="/admin/pricing" className="flex items-center justify-between py-2 hover:bg-gray-50 px-2 rounded">
+            <div className="flex items-center">
+              <DollarSign size={18} className="text-indigo-600 mr-3" />
+              <span>票价设置</span>
+            </div>
+            <ChevronRight size={16} className="text-gray-400" />
+          </Link>
+          
+          <Link href="/admin/stats" className="flex items-center justify-between py-2 hover:bg-gray-50 px-2 rounded">
+            <div className="flex items-center">
+              <BarChart2 size={18} className="text-indigo-600 mr-3" />
+              <span>数据统计</span>
+            </div>
+            <ChevronRight size={16} className="text-gray-400" />
+          </Link>
+        </div>
+      </div>
+      
+      {/* 应用设置 */}
+      <div className="bg-white rounded-lg shadow p-4 mb-6">
+        <h2 className="font-medium mb-4">应用设置</h2>
+        
+        <div className="space-y-4">
+          {/* 通知设置 */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Bell size={18} className="text-gray-500 mr-3" />
+              <span>通知提醒</span>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input 
+                type="checkbox" 
+                className="sr-only peer" 
+                checked={notificationsEnabled}
+                onChange={() => setNotificationsEnabled(!notificationsEnabled)}
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+            </label>
+          </div>
+          
+          {/* 深色模式 */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Moon size={18} className="text-gray-500 mr-3" />
+              <span>深色模式</span>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input 
+                type="checkbox" 
+                className="sr-only peer" 
+                checked={darkModeEnabled}
+                onChange={() => setDarkModeEnabled(!darkModeEnabled)}
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+            </label>
+          </div>
+          
+          {/* 语言设置 */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Globe size={18} className="text-gray-500 mr-3" />
+              <span>语言</span>
+            </div>
+            <div className="flex items-center text-gray-500">
+              <span className="mr-2">{language}</span>
+              <ChevronRight size={16} />
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* 系统安全 */}
+      <div className="bg-white rounded-lg shadow p-4 mb-6">
+        <h2 className="font-medium mb-4">系统安全</h2>
+        
+        <div className="space-y-4">
+          <div className="flex items-center justify-between py-2">
+            <div className="flex items-center">
+              <Shield size={18} className="text-gray-500 mr-3" />
+              <span>修改密码</span>
+            </div>
+            <ChevronRight size={16} className="text-gray-400" />
+          </div>
+          
+          <div className="flex items-center justify-between py-2">
+            <div className="flex items-center">
+              <div className="w-5 h-5 mr-3 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <span>隐私设置</span>
+            </div>
+            <ChevronRight size={16} className="text-gray-400" />
+          </div>
+        </div>
+      </div>
+      
+      {/* 系统信息 */}
+      <div className="bg-white rounded-lg shadow p-4 mb-6">
+        <h2 className="font-medium mb-2">系统信息</h2>
+        <div className="text-sm text-gray-500 space-y-1">
+          <p>版本：v1.0.0</p>
+          <p>构建时间：2025-05-01</p>
+        </div>
+      </div>
+      
+      {/* 退出登录 */}
+      <button className="w-full bg-red-50 text-red-600 rounded-lg p-4 flex items-center justify-center">
+        <LogOut size={18} className="mr-2" />
+        <span>退出登录</span>
+      </button>
+    </div>
+  );
+} 

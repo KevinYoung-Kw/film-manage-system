@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Film, Ticket, User, Home } from 'lucide-react';
+import { Film, Ticket, User, Home, Calendar, DollarSign, Settings, Layout } from 'lucide-react';
 
 interface MobileLayoutProps {
   children: React.ReactNode;
@@ -82,34 +82,36 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({
 
 function getNavItems(userRole: 'customer' | 'admin' | 'staff') {
   // 根据用户角色返回不同的导航项
-  const commonItems = [
-    { label: '首页', href: '/user', icon: Home }
-  ];
-
   if (userRole === 'customer') {
     return [
-      ...commonItems,
+      { label: '首页', href: '/user', icon: Home },
       { label: '电影', href: '/user/movies', icon: Film },
       { label: '订单', href: '/user/orders', icon: Ticket },
       { label: '我的', href: '/user/profile', icon: User }
     ];
   } else if (userRole === 'admin') {
     return [
-      ...commonItems,
-      { label: '管理', href: '/admin', icon: Film },
-      { label: '统计', href: '/admin/stats', icon: Ticket },
-      { label: '设置', href: '/admin/settings', icon: User }
+      { label: '首页', href: '/admin/movies', icon: Home },
+      { label: '排片', href: '/admin/showtimes', icon: Calendar },
+      { label: '影厅', href: '/admin/theaters', icon: Layout },
+      { label: '设置', href: '/admin/settings', icon: Settings }
     ];
   } else if (userRole === 'staff') {
     return [
-      ...commonItems,
-      { label: '售票', href: '/staff', icon: Ticket },
+      { label: '首页', href: '/staff/sell', icon: Home },
+      { label: '售票', href: '/staff/sell', icon: Ticket },
       { label: '检票', href: '/staff/check', icon: Film },
       { label: '我的', href: '/staff/profile', icon: User }
     ];
   }
 
-  return commonItems;
+  // 默认导航
+  return [
+    { label: '首页', href: '/user', icon: Home },
+    { label: '电影', href: '/user/movies', icon: Film },
+    { label: '订单', href: '/user/orders', icon: Ticket },
+    { label: '我的', href: '/user/profile', icon: User }
+  ];
 }
 
 export default MobileLayout; 

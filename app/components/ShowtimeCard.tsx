@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Clock } from 'lucide-react';
 import { Card } from './ui/Card';
 import { Showtime, Movie, Theater, TicketType } from '../lib/types';
+import { zhCN } from 'date-fns/locale';
 
 interface ShowtimeCardProps {
   showtime: Showtime;
@@ -29,7 +30,7 @@ const ShowtimeCard: React.FC<ShowtimeCardProps> = ({
   const startTime = format(showtime.startTime, 'HH:mm');
   const endTime = format(showtime.endTime, 'HH:mm');
   const date = format(showtime.startTime, 'MM-dd');
-  const dayOfWeek = format(showtime.startTime, 'EEEE');
+  const dayOfWeek = format(showtime.startTime, 'EEEE', { locale: zhCN });
   
   // 获取普通票价
   const normalPrice = showtime.price[TicketType.NORMAL];

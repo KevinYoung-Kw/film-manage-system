@@ -1,4 +1,4 @@
-import { User, UserRole, Movie, Theater, Showtime, Order, OrderStatus, TicketType, MovieStatus } from './types';
+import { User, UserRole, Movie, Theater, Showtime, Order, OrderStatus, TicketType, MovieStatus, StaffOperation, StaffOperationType, StaffSchedule, ShiftType } from './types';
 
 // 默认图片资源
 export const defaultImages = {
@@ -277,5 +277,111 @@ export const mockOrders: Order[] = [
     totalPrice: 270,
     status: OrderStatus.PENDING,
     createdAt: new Date("2024-04-28T18:45:00")
+  }
+];
+
+// 模拟工作人员操作记录
+export const mockStaffOperations: StaffOperation[] = [
+  {
+    id: "operation1",
+    staffId: "staff1",
+    orderId: "order1",
+    showtimeId: "showtime1",
+    type: StaffOperationType.SELL,
+    details: JSON.stringify({
+      ticketType: TicketType.NORMAL,
+      seats: ["seat-theater1-5-6", "seat-theater1-5-7"],
+      totalPrice: 160,
+      paymentMethod: "cash"
+    }),
+    createdAt: new Date("2024-04-25T14:35:00")
+  },
+  {
+    id: "operation2",
+    staffId: "staff1",
+    orderId: "order2",
+    showtimeId: "showtime3",
+    type: StaffOperationType.SELL,
+    details: JSON.stringify({
+      ticketType: TicketType.STUDENT,
+      seats: ["seat-theater2-3-5"],
+      totalPrice: 30,
+      paymentMethod: "wechat"
+    }),
+    createdAt: new Date("2024-04-26T09:20:00")
+  },
+  {
+    id: "operation3",
+    staffId: "staff1",
+    orderId: "order1",
+    showtimeId: "showtime1",
+    type: StaffOperationType.CHECK,
+    details: JSON.stringify({
+      checkTime: "2024-04-25T16:45:00",
+      status: "success"
+    }),
+    createdAt: new Date("2024-04-25T16:45:00")
+  },
+  {
+    id: "operation4",
+    staffId: "staff1",
+    orderId: "order4",
+    showtimeId: "showtime2",
+    type: StaffOperationType.REFUND,
+    details: JSON.stringify({
+      refundAmount: 80,
+      reason: "顾客个人原因",
+      refundMethod: "original"
+    }),
+    createdAt: new Date("2024-04-27T11:30:00")
+  }
+];
+
+// 模拟工作人员排班信息
+export const mockStaffSchedules: StaffSchedule[] = [
+  {
+    id: "schedule1",
+    staffId: "staff1",
+    date: new Date("2024-05-01"),
+    shift: ShiftType.MORNING,
+    position: "售票",
+    notes: "工作日早班",
+    createdAt: new Date("2024-04-20T10:00:00")
+  },
+  {
+    id: "schedule2",
+    staffId: "staff1",
+    date: new Date("2024-05-01"),
+    shift: ShiftType.AFTERNOON,
+    position: "检票",
+    notes: "工作日下午班",
+    createdAt: new Date("2024-04-20T10:00:00")
+  },
+  {
+    id: "schedule3",
+    staffId: "staff1",
+    date: new Date("2024-05-02"),
+    shift: ShiftType.EVENING,
+    position: "售票",
+    notes: "加班",
+    createdAt: new Date("2024-04-20T10:00:00"),
+    updatedAt: new Date("2024-04-25T14:30:00")
+  },
+  {
+    id: "schedule4",
+    staffId: "staff1",
+    date: new Date("2024-05-03"),
+    shift: ShiftType.MORNING,
+    position: "售票",
+    createdAt: new Date("2024-04-20T10:00:00")
+  },
+  {
+    id: "schedule5",
+    staffId: "staff1",
+    date: new Date("2024-05-04"),
+    shift: ShiftType.AFTERNOON,
+    position: "检票",
+    notes: "周末班",
+    createdAt: new Date("2024-04-20T10:00:00")
   }
 ]; 

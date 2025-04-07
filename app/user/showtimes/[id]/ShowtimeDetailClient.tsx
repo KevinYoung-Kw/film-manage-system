@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
+import { zhCN } from 'date-fns/locale';
 import { Clock, Calendar, MapPin, Trash } from 'lucide-react';
 import MobileLayout from '@/app/components/layout/MobileLayout';
 import { Card, CardFooter } from '@/app/components/ui/Card';
@@ -46,7 +47,7 @@ export default function ShowtimeDetailClient({ showtime, movie, theater }: Showt
   const startTime = format(new Date(showtime.startTime), 'HH:mm');
   const endTime = format(new Date(showtime.endTime), 'HH:mm');
   const date = format(new Date(showtime.startTime), 'yyyy年MM月dd日');
-  const dayOfWeek = format(new Date(showtime.startTime), 'EEEE');
+  const dayOfWeek = format(new Date(showtime.startTime), 'EEEE', { locale: zhCN });
   
   // 处理座位选择
   const handleSeatSelection = (seatId: string) => {

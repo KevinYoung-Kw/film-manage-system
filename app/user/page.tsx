@@ -114,7 +114,7 @@ export default function UserHome() {
 
       {/* 底部信息 */}
       <div className="text-center mt-8 mb-4 px-4 text-slate-400 text-xs">
-        <p>© 2024 电影票务系统</p>
+        <p>© 2025 电影票务系统</p>
         <p className="mt-1">影院地址: 中国某省某市某区某街道123号</p>
       </div>
     </MobileLayout>

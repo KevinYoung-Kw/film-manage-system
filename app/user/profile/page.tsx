@@ -180,7 +180,7 @@ export default function ProfilePage() {
       {/* 底部版本信息 */}
       <div className="text-center p-4 text-xs text-slate-400">
         <p>电影票务系统 v1.0.0</p>
-        <p className="mt-1">© 2024 保留所有权利</p>
+        <p className="mt-1">© 2025 保留所有权利</p>
       </div>
     </MobileLayout>
   );
