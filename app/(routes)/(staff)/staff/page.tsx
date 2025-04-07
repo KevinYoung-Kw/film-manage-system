@@ -1,22 +1,21 @@
-import React from 'react';
+'use client';
+
+import React, { useEffect } from 'react';
 import Link from 'next/link';
 import MobileLayout from '@/app/components/layout/MobileLayout';
 import { Card, CardContent } from '@/app/components/ui/Card';
 import { Ticket, QrCode, CreditCard, History, Search } from 'lucide-react';
-import { mockShowtimes } from '@/app/lib/mockData';
 import { format } from 'date-fns';
+import { useAppContext } from '@/app/lib/context/AppContext';
+import { staffRoutes } from '@/app/lib/utils/navigation';
 
 export default function StaffPage() {
-  // 获取当天的场次
-  const today = new Date();
-  const todayShowtimes = mockShowtimes.filter(showtime => {
-    const showtimeDate = new Date(showtime.startTime);
-    return (
-      showtimeDate.getDate() === today.getDate() &&
-      showtimeDate.getMonth() === today.getMonth() &&
-      showtimeDate.getFullYear() === today.getFullYear()
-    );
-  });
+  const { todayShowtimes, isLoading, refreshData } = useAppContext();
+  
+  // 组件加载时刷新数据
+  useEffect(() => {
+    refreshData();
+  }, [refreshData]);
 
   return (
     <MobileLayout title="售票系统" userRole="staff">
@@ -37,7 +36,7 @@ export default function StaffPage() {
         <div className="grid grid-cols-2 gap-4 mb-6">
           <Card className="p-3">
             <CardContent>
-              <Link href="/staff/sell" className="flex flex-col items-center">
+              <Link href={staffRoutes.sell} className="flex flex-col items-center">
                 <div className="h-12 w-12 rounded-full bg-indigo-100 flex items-center justify-center mb-2">
                   <Ticket className="h-6 w-6 text-indigo-600" />
                 </div>
@@ -49,7 +48,7 @@ export default function StaffPage() {
           
           <Card className="p-3">
             <CardContent>
-              <Link href="/staff/check" className="flex flex-col items-center">
+              <Link href={staffRoutes.check} className="flex flex-col items-center">
                 <div className="h-12 w-12 rounded-full bg-emerald-100 flex items-center justify-center mb-2">
                   <QrCode className="h-6 w-6 text-emerald-600" />
                 </div>
@@ -61,7 +60,7 @@ export default function StaffPage() {
           
           <Card className="p-3">
             <CardContent>
-              <Link href="/staff/refund" className="flex flex-col items-center">
+              <Link href={staffRoutes.refund} className="flex flex-col items-center">
                 <div className="h-12 w-12 rounded-full bg-amber-100 flex items-center justify-center mb-2">
                   <CreditCard className="h-6 w-6 text-amber-600" />
                 </div>
@@ -73,7 +72,7 @@ export default function StaffPage() {
           
           <Card className="p-3">
             <CardContent>
-              <Link href="/staff/history" className="flex flex-col items-center">
+              <Link href={staffRoutes.history} className="flex flex-col items-center">
                 <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center mb-2">
                   <History className="h-6 w-6 text-blue-600" />
                 </div>
@@ -87,25 +86,29 @@ export default function StaffPage() {
         <h2 className="text-lg font-semibold mb-3">今日场次</h2>
         
         <div className="space-y-3 mb-6">
-          {todayShowtimes.length > 0 ? (
+          {isLoading ? (
+            <div className="text-center py-4 text-slate-500">加载中...</div>
+          ) : todayShowtimes.length > 0 ? (
             todayShowtimes.map(showtime => (
               <Card key={showtime.id} className="p-3">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <div className="font-medium">{format(showtime.startTime, 'HH:mm')}</div>
-                    <div className="text-xs text-slate-500 mt-1">
-                      {format(showtime.startTime, 'yyyy-MM-dd')}
+                <Link href={staffRoutes.sellSeats(showtime.id)}>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <div className="font-medium">{format(showtime.startTime, 'HH:mm')}</div>
+                      <div className="text-xs text-slate-500 mt-1">
+                        {format(showtime.startTime, 'yyyy-MM-dd')}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm">
+                        影厅: {showtime.theaterId.replace('theater', '')}号厅
+                      </div>
+                      <div className="text-xs text-slate-500 mt-1">
+                        {showtime.availableSeats.filter(seat => seat.available).length} 座可售
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-sm">
-                      影厅: {showtime.theaterId.replace('theater', '')}号厅
-                    </div>
-                    <div className="text-xs text-slate-500 mt-1">
-                      {showtime.availableSeats.filter(seat => seat.available).length} 座可售
-                    </div>
-                  </div>
-                </div>
+                </Link>
               </Card>
             ))
           ) : (

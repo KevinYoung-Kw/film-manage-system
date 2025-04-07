@@ -5,7 +5,7 @@ export const mockMovies: Movie[] = [
   {
     id: "movie1",
     title: "流浪地球3",
-    poster: "https://img1.doubanio.com/view/photo/s_ratio_poster/public/p2898989775.webp",
+    poster: "https://img3.doubanio.com/view/photo/l/public/p2545472803.webp",
     duration: 145,
     director: "郭帆",
     actors: ["吴京", "刘德华", "李雪健", "沙溢"],
@@ -17,7 +17,7 @@ export const mockMovies: Movie[] = [
   {
     id: "movie2",
     title: "独行月球",
-    poster: "https://img1.doubanio.com/view/photo/s_ratio_poster/public/p2877522569.webp",
+    poster: "https://img1.doubanio.com/view/photo/l/public/p2876409008.webp",
     duration: 122,
     director: "张小北",
     actors: ["沈腾", "马丽", "常远", "李诞"],
