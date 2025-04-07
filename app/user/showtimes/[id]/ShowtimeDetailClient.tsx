@@ -102,8 +102,8 @@ export default function ShowtimeDetailClient({ showtime, movie, theater }: Showt
     // 存储订单数据到sessionStorage
     sessionStorage.setItem('pendingOrder', JSON.stringify(orderData));
     
-    // 跳转到支付页面
-    router.push(userRoutes.checkout(showtime.id));
+    // 跳转到支付页面，并传递所选座位
+    router.push(userRoutes.checkout(showtime.id, selectedSeats.join(',')));
   };
 
   return (

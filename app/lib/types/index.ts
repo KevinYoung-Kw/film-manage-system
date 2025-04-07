@@ -4,6 +4,13 @@ export enum UserRole {
   CUSTOMER = 'customer' // 观众
 }
 
+// 电影状态
+export enum MovieStatus {
+  SHOWING = 'showing',          // 正在上映
+  COMING_SOON = 'coming_soon',  // 即将上映
+  OFF_SHOWING = 'off_showing'   // 已下映
+}
+
 // 用户基本信息
 export interface User {
   id: string;
@@ -17,14 +24,17 @@ export interface User {
 export interface Movie {
   id: string;
   title: string;
+  originalTitle?: string;  // 原始标题（外语电影）
   poster: string;
   duration: number; // 分钟
   director: string;
   actors: string[];
+  cast?: string[];  // 演员阵容（详细）
   description: string;
   releaseDate: Date;
   genre: string[];
   rating: number; // 1-10的评分
+  status?: MovieStatus;  // 电影状态
 }
 
 // 影厅类型

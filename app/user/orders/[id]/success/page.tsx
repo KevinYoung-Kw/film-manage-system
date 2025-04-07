@@ -15,6 +15,9 @@ import { userRoutes } from '@/app/lib/utils/navigation';
 
 export default function OrderSuccessPage({ params }: { params: { id: string } }) {
   const router = useRouter();
+  // 直接解构params，避免NextJS警告
+  const { id: orderId } = params as { id: string };
+  
   const [order, setOrder] = useState<any>(null);
   const [movie, setMovie] = useState<any>(null);
   const [theater, setTheater] = useState<any>(null);
@@ -22,7 +25,7 @@ export default function OrderSuccessPage({ params }: { params: { id: string } })
   useEffect(() => {
     // 从localStorage获取订单信息
     const orders = JSON.parse(localStorage.getItem('orders') || '[]');
-    const currentOrder = orders.find((o: any) => o.id === params.id);
+    const currentOrder = orders.find((o: any) => o.id === orderId);
     
     if (!currentOrder) {
       router.push(userRoutes.orders);
@@ -55,7 +58,7 @@ export default function OrderSuccessPage({ params }: { params: { id: string } })
     }
     
     loadData();
-  }, [params.id, router]);
+  }, [orderId, router]);
   
   if (!order || !movie) {
     return (

@@ -11,6 +11,7 @@ import SeatMap from '@/app/components/SeatMap';
 import { mockMovies, mockShowtimes, mockTheaters } from '@/app/lib/mockData';
 import { TicketType } from '@/app/lib/types';
 import { MinusCircle, PlusCircle, CreditCard, AlertCircle } from 'lucide-react';
+import { userRoutes } from '@/app/lib/utils/navigation';
 
 export default function SeatSelectionPage({ 
   params 
@@ -18,6 +19,9 @@ export default function SeatSelectionPage({
   params: { id: string; showtimeId: string } 
 }) {
   const router = useRouter();
+  // 直接解构params，避免NextJS警告
+  const { id: movieId, showtimeId } = params as { id: string; showtimeId: string };
+  
   const [movie, setMovie] = useState<any>(null);
   const [showtime, setShowtime] = useState<any>(null);
   const [theater, setTheater] = useState<any>(null);
@@ -26,7 +30,7 @@ export default function SeatSelectionPage({
   
   useEffect(() => {
     // 获取场次信息
-    const targetShowtime = mockShowtimes.find(s => s.id === params.showtimeId);
+    const targetShowtime = mockShowtimes.find(s => s.id === showtimeId);
     
     if (targetShowtime) {
       setShowtime(targetShowtime);
@@ -39,7 +43,7 @@ export default function SeatSelectionPage({
       const targetTheater = mockTheaters.find(t => t.id === targetShowtime.theaterId);
       if (targetTheater) setTheater(targetTheater);
     }
-  }, [params.id, params.showtimeId]);
+  }, [movieId, showtimeId]);
   
   const handleSeatSelect = (seatId: string) => {
     // 如果已经选择了这个座位，则取消选择
@@ -72,8 +76,8 @@ export default function SeatSelectionPage({
       return;
     }
     
-    // 跳转到支付页面
-    router.push(`/payment?showtimeId=${showtime.id}&seats=${selectedSeats.join(',')}`);
+    // 跳转到支付页面，使用 userRoutes
+    router.push(userRoutes.checkout(showtime.id, selectedSeats.join(',')));
   };
   
   if (!movie || !showtime || !theater) {

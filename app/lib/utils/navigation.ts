@@ -21,7 +21,8 @@ export const userRoutes = {
   movieDetail: (id: string) => `/user/movies/${id}`,
   showtime: (movieId: string) => `/user/movies/${movieId}/showtimes`,
   selectSeats: (showtimeId: string) => `/user/showtimes/${showtimeId}`,
-  checkout: (showtimeId: string) => `/user/payment?showtimeId=${showtimeId}`,
+  checkout: (showtimeId: string, seats?: string) => 
+    seats ? `/user/payment?showtimeId=${showtimeId}&seats=${seats}` : `/user/payment?showtimeId=${showtimeId}`,
   orderSuccess: (orderId: string) => `/user/orders/${orderId}/success`,
 };
 

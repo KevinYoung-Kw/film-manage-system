@@ -1,18 +1,29 @@
-import { Movie, Theater, UserRole, Showtime, TicketType, User, OrderStatus, Order } from "./types";
+import { User, UserRole, Movie, Theater, Showtime, Order, OrderStatus, TicketType, MovieStatus } from './types';
+
+// 默认图片资源
+export const defaultImages = {
+  banner: '/images/default-banner.jpg',
+  moviePoster: '/images/default-poster.jpg',
+  avatar: '/images/default-avatar.jpg',
+  theater: '/images/default-theater.jpg'
+};
 
 // 模拟电影数据
 export const mockMovies: Movie[] = [
   {
     id: "movie1",
-    title: "流浪地球3",
-    poster: "https://img3.doubanio.com/view/photo/l/public/p2545472803.webp",
-    duration: 145,
+    title: "流浪地球2",
+    originalTitle: "The Wandering Earth II",
+    description: "太阳即将毁灭，人类在地球表面建造出巨大的推进器，寻找新家园。然而宇宙之路危机四伏，为了拯救地球，流浪地球时代的年轻人再次挺身而出，展开争分夺秒的生死之战。",
     director: "郭帆",
     actors: ["吴京", "刘德华", "李雪健", "沙溢"],
-    description: "地球生态系统面临崩溃，人类启动'流浪地球'计划，推动地球离开太阳系，寻找新家园。",
-    releaseDate: new Date("2024-02-10"),
+    cast: ["吴京", "刘德华", "李雪健", "沙溢", "宁理", "王智", "朱颜曼滋", "安地"],
     genre: ["科幻", "冒险", "灾难"],
-    rating: 8.5
+    duration: 173,
+    rating: 8.2,
+    releaseDate: new Date("2023-01-22"),
+    poster: defaultImages.moviePoster,
+    status: MovieStatus.SHOWING
   },
   {
     id: "movie2",
@@ -267,11 +278,4 @@ export const mockOrders: Order[] = [
     status: OrderStatus.PENDING,
     createdAt: new Date("2024-04-28T18:45:00")
   }
-];
-
-// 默认图片URL
-export const defaultImages = {
-  moviePoster: "https://img3.doubanio.com/f/movie/caa8f80c1fcb133a0eb083caaa89e9c8ff1c3ed7/pics/movie/movie_default_large.png",
-  banner: "https://img2.doubanio.com/view/photo/l/public/p2879572901.webp",
-  logo: "https://img1.doubanio.com/f/movie/0a74d4ece5f642af5c5f3fa05b5f659b6e229a81/pics/movie/logo_db.png"
-}; 
+]; 

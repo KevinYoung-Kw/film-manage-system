@@ -116,7 +116,7 @@ export default function OrdersPage() {
               
               <div className="mt-3 flex gap-2">
                 {order.status === OrderStatus.PENDING && (
-                  <Link href={`/payment?showtimeId=${order.showtimeId}`}>
+                  <Link href={`/user/payment?showtimeId=${order.showtimeId}`}>
                     <Button size="sm" variant="primary">
                       <CreditCard className="h-4 w-4 mr-1" />
                       去支付
@@ -125,7 +125,7 @@ export default function OrdersPage() {
                 )}
                 
                 {order.status === OrderStatus.PAID && (
-                  <Link href={`/orders/${order.id}`}>
+                  <Link href={`/user/orders/${order.id}`}>
                     <Button size="sm" variant="outline">
                       <Film className="h-4 w-4 mr-1" />
                       查看票券

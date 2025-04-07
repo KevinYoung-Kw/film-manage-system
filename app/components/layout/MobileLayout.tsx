@@ -105,7 +105,7 @@ function getNavItems(userRole: 'customer' | 'admin' | 'staff') {
       ...commonItems,
       { label: '售票', href: '/staff', icon: Ticket },
       { label: '检票', href: '/staff/check', icon: Film },
-      { label: '我的', href: '/profile', icon: User }
+      { label: '我的', href: '/staff/profile', icon: User }
     ];
   }
 
