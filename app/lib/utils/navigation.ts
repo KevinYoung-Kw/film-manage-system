@@ -17,12 +17,12 @@ export const userRoutes = {
   settings: '/user/settings',
   
   // 购票流程
-  movieList: '/',
-  movieDetail: (id: string) => `/movies/${id}`,
-  showtime: (movieId: string) => `/movies/${movieId}/showtimes`,
-  selectSeats: (showtimeId: string) => `/showtimes/${showtimeId}`,
-  checkout: (showtimeId: string) => `/payment?showtimeId=${showtimeId}`,
-  orderSuccess: (orderId: string) => `/orders/${orderId}/success`,
+  movieList: '/user',
+  movieDetail: (id: string) => `/user/movies/${id}`,
+  showtime: (movieId: string) => `/user/movies/${movieId}/showtimes`,
+  selectSeats: (showtimeId: string) => `/user/showtimes/${showtimeId}`,
+  checkout: (showtimeId: string) => `/user/payment?showtimeId=${showtimeId}`,
+  orderSuccess: (orderId: string) => `/user/orders/${orderId}/success`,
 };
 
 // 工作人员相关路由

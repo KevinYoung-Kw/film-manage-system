@@ -8,7 +8,7 @@ import TabGroup from '@/app/components/ui/TabGroup';
 import { mockMovies } from '@/app/lib/mockData';
 import { Search } from 'lucide-react';
 
-export default function MoviesPage() {
+export default function UserMoviesPage() {
   // 把电影按类型分组
   const actionMovies = mockMovies.filter(movie => movie.genre.includes('科幻') || movie.genre.includes('冒险'));
   const comedyMovies = mockMovies.filter(movie => movie.genre.includes('喜剧'));

@@ -1,16 +1,16 @@
 import React from 'react';
-import MovieShowtimesClient from './MovieShowtimesClient';
 import { MovieService } from '@/app/lib/services/dataService';
+import MovieShowtimesClient from './MovieShowtimesClient';
 
-export default async function MovieShowtimesPage({ params }: { params: { id: string } }) {
-  // 服务器组件中解析params
+export default async function UserMovieShowtimesPage({ params }: { params: { id: string } }) {
+  // 先解构 params，处理 Promise
   const resolvedParams = await params;
   const movieId = resolvedParams.id;
-
-  // 获取电影详情
-  const movie = await MovieService.getMovieById(movieId);
   
-  if (!movie) {
+  // 获取电影信息
+  const movieData = await MovieService.getMovieById(movieId);
+  
+  if (!movieData) {
     return (
       <div className="flex flex-col items-center justify-center p-8">
         <h2 className="text-lg font-semibold text-slate-800">电影不存在</h2>
@@ -19,6 +19,5 @@ export default async function MovieShowtimesPage({ params }: { params: { id: str
     );
   }
   
-  // 渲染客户端组件
-  return <MovieShowtimesClient movie={movie} />;
+  return <MovieShowtimesClient movie={movieData} />;
 } 

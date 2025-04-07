@@ -83,15 +83,15 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({
 function getNavItems(userRole: 'customer' | 'admin' | 'staff') {
   // 根据用户角色返回不同的导航项
   const commonItems = [
-    { label: '首页', href: '/', icon: Home }
+    { label: '首页', href: '/user', icon: Home }
   ];
 
   if (userRole === 'customer') {
     return [
       ...commonItems,
-      { label: '电影', href: '/movies', icon: Film },
-      { label: '订单', href: '/orders', icon: Ticket },
-      { label: '我的', href: '/profile', icon: User }
+      { label: '电影', href: '/user/movies', icon: Film },
+      { label: '订单', href: '/user/orders', icon: Ticket },
+      { label: '我的', href: '/user/profile', icon: User }
     ];
   } else if (userRole === 'admin') {
     return [

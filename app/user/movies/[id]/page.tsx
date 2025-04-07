@@ -10,7 +10,7 @@ import { MovieService, ShowtimeService, TheaterService } from '@/app/lib/service
 import { userRoutes } from '@/app/lib/utils/navigation';
 
 // 将页面转换为服务器组件
-export default async function MovieDetail({ params }: { params: { id: string } }) {
+export default async function UserMovieDetail({ params }: { params: { id: string } }) {
   // 先解构 params，处理 Promise
   const resolvedParams = await params;
   const movieId = resolvedParams.id;

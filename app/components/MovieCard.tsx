@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 import { Card } from './ui/Card';
 import { Movie } from '../lib/types';
 import { defaultImages } from '../lib/mockData';
+import { userRoutes } from '../lib/utils/navigation';
 
 interface MovieCardProps {
   movie: Movie;
@@ -23,7 +24,7 @@ const MovieCard: React.FC<MovieCardProps> = ({
   // 根据variant选择不同的卡片样式
   if (variant === 'compact') {
     return (
-      <Link href={`/movies/${movie.id}`}>
+      <Link href={userRoutes.movieDetail(movie.id)}>
         <Card
           className={`flex flex-row h-28 overflow-hidden ${className}`}
           withHover
@@ -58,7 +59,7 @@ const MovieCard: React.FC<MovieCardProps> = ({
   }
 
   return (
-    <Link href={`/movies/${movie.id}`}>
+    <Link href={userRoutes.movieDetail(movie.id)}>
       <Card
         className={`overflow-hidden ${className}`}
         withHover
