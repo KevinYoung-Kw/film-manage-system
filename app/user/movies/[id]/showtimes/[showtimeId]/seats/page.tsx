@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import MobileLayout from '@/app/components/layout/MobileLayout';
@@ -13,14 +13,13 @@ import { TicketType } from '@/app/lib/types';
 import { MinusCircle, PlusCircle, CreditCard, AlertCircle } from 'lucide-react';
 import { userRoutes } from '@/app/lib/utils/navigation';
 
-export default function SeatSelectionPage({ 
-  params 
-}: { 
-  params: { id: string; showtimeId: string } 
-}) {
+export default function SeatSelectionPage() {
   const router = useRouter();
-  // 直接解构params，避免NextJS警告
-  const { id: movieId, showtimeId } = params as { id: string; showtimeId: string };
+  const params = useParams();
+  
+  // 从URL参数中获取电影ID和场次ID
+  const movieId = typeof params.id === 'string' ? params.id : Array.isArray(params.id) ? params.id[0] : '';
+  const showtimeId = typeof params.showtimeId === 'string' ? params.showtimeId : Array.isArray(params.showtimeId) ? params.showtimeId[0] : '';
   
   const [movie, setMovie] = useState<any>(null);
   const [showtime, setShowtime] = useState<any>(null);

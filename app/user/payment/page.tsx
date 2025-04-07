@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -14,7 +14,8 @@ import { OrderStatus, TicketType } from '@/app/lib/types';
 import { userRoutes } from '@/app/lib/utils/navigation';
 import { PaymentService, PaymentMethod, PaymentStatus } from '@/app/lib/services/paymentService';
 
-export default function PaymentPage() {
+// 创建一个使用 useSearchParams 的组件，这样可以在 Suspense 边界中使用它
+function PaymentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
@@ -399,5 +400,28 @@ export default function PaymentPage() {
         </div>
       </div>
     </MobileLayout>
+  );
+}
+
+// 加载中的占位内容
+function PaymentLoading() {
+  return (
+    <MobileLayout title="加载中..." showBackButton>
+      <div className="flex flex-col items-center justify-center h-[80vh] bg-white p-4">
+        <div className="w-16 h-16 mb-4">
+          <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-indigo-600"></div>
+        </div>
+        <p className="text-slate-500">正在加载支付页面...</p>
+      </div>
+    </MobileLayout>
+  );
+}
+
+// 主要导出的页面组件，使用 Suspense 包装 PaymentContent
+export default function PaymentPage() {
+  return (
+    <Suspense fallback={<PaymentLoading />}>
+      <PaymentContent />
+    </Suspense>
   );
 } 

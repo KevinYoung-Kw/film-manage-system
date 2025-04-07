@@ -3,29 +3,31 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { format, isToday, isTomorrow } from 'date-fns';
 import { Clock, Users, Star, Calendar, ChevronRight } from 'lucide-react';
 import MobileLayout from '@/app/components/layout/MobileLayout';
 import { Card } from '@/app/components/ui/Card';
-import Button from '@/app/components/ui/Button';
 import { mockMovies, mockShowtimes, mockTheaters, defaultImages } from '@/app/lib/mockData';
 import { Movie, Showtime, Theater } from '@/app/lib/types';
 import { staffRoutes } from '@/app/lib/utils/navigation';
 
-export default function StaffMovieDetailPage({ 
-  params 
-}: { 
-  params: { id: string } 
-}) {
+// 扩展Showtime类型，添加theater属性
+type ShowtimeWithTheater = Showtime & {
+  theater?: Theater;
+};
+
+export default function StaffMovieDetailPage() {
   const router = useRouter();
+  const params = useParams();
+  const movieId = typeof params.id === 'string' ? params.id : Array.isArray(params.id) ? params.id[0] : '';
   const [movie, setMovie] = useState<Movie | null>(null);
-  const [todayShowtimes, setTodayShowtimes] = useState<any[]>([]);
+  const [todayShowtimes, setTodayShowtimes] = useState<ShowtimeWithTheater[]>([]);
   
   // 获取电影和今日场次
   useEffect(() => {
     // 获取电影详情
-    const foundMovie = mockMovies.find(m => m.id === params.id);
+    const foundMovie = mockMovies.find(m => m.id === movieId);
     
     if (!foundMovie) {
       router.push(staffRoutes.sell);
@@ -41,7 +43,7 @@ export default function StaffMovieDetailPage({
     
     // 找出当天该电影的场次
     const showtimesForMovie = mockShowtimes.filter(showtime => 
-      showtime.movieId === params.id && 
+      showtime.movieId === movieId && 
       showtime.startTime > now && 
       showtime.startTime < endOfDay
     );
@@ -61,7 +63,7 @@ export default function StaffMovieDetailPage({
     );
     
     setTodayShowtimes(sortedShowtimes);
-  }, [params.id, router]);
+  }, [movieId, router]);
   
   // 格式化电影时长
   const formatDuration = (minutes: number) => {
@@ -82,7 +84,7 @@ export default function StaffMovieDetailPage({
   };
   
   // 获取价格范围
-  const getPriceRange = (showtime: Showtime) => {
+  const getPriceRange = (showtime: ShowtimeWithTheater) => {
     if (!showtime.price) return '暂无价格';
     
     const prices = Object.values(showtime.price);

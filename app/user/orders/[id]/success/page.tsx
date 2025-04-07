@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { format } from 'date-fns';
@@ -13,10 +13,10 @@ import { defaultImages } from '@/app/lib/mockData';
 import { MovieService, TheaterService } from '@/app/lib/services/dataService';
 import { userRoutes } from '@/app/lib/utils/navigation';
 
-export default function OrderSuccessPage({ params }: { params: { id: string } }) {
+export default function OrderSuccessPage() {
   const router = useRouter();
-  // 直接解构params，避免NextJS警告
-  const { id: orderId } = params as { id: string };
+  const params = useParams();
+  const orderId = typeof params.id === 'string' ? params.id : Array.isArray(params.id) ? params.id[0] : '';
   
   const [order, setOrder] = useState<any>(null);
   const [movie, setMovie] = useState<any>(null);

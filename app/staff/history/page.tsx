@@ -20,9 +20,9 @@ export default function StaffHistoryPage() {
     const enhancedOperations = [...mockStaffOperations]
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .map(operation => {
-        let orderDetails = null;
-        let showtimeDetails = null;
-        let movieDetails = null;
+        let orderDetails: any = null;
+        let showtimeDetails: any = null;
+        let movieDetails: any = null;
         
         if (operation.orderId) {
           orderDetails = mockOrders.find(order => order.id === operation.orderId);

@@ -13,9 +13,9 @@ import { mockOrders, mockMovies, mockShowtimes, mockTheaters, defaultImages } fr
 import { Order, OrderStatus, Seat } from '@/app/lib/types';
 import { Film, Calendar, MapPin, Clock, AlertCircle, Download, Share2 } from 'lucide-react';
 
-export default function OrderDetailPage({ params }: { params: { id: string } }) {
-  // 使用直接解构，在NextJS最新版本中这样访问更安全
-  const { id: orderId } = params as { id: string };
+export default function OrderDetailPage() {
+  const params = useParams();
+  const orderId = typeof params.id === 'string' ? params.id : Array.isArray(params.id) ? params.id[0] : '';
   
   const [order, setOrder] = useState<Order | null>(null);
   const [movie, setMovie] = useState<any>(null);

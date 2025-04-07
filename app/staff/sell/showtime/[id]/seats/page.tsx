@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { CreditCard, Check, MapPin } from 'lucide-react';
 import MobileLayout from '@/app/components/layout/MobileLayout';
@@ -12,12 +12,10 @@ import { mockShowtimes, mockMovies, mockTheaters } from '@/app/lib/mockData';
 import { TicketType } from '@/app/lib/types';
 import { staffRoutes } from '@/app/lib/utils/navigation';
 
-export default function StaffSeatSelectionPage({ 
-  params 
-}: { 
-  params: { id: string } 
-}) {
+export default function StaffSeatSelectionPage() {
   const router = useRouter();
+  const params = useParams();
+  const showtimeId = typeof params.id === 'string' ? params.id : Array.isArray(params.id) ? params.id[0] : '';
   const [showtime, setShowtime] = useState<any>(null);
   const [movie, setMovie] = useState<any>(null);
   const [theater, setTheater] = useState<any>(null);
@@ -29,7 +27,7 @@ export default function StaffSeatSelectionPage({
   
   useEffect(() => {
     // 获取场次、电影和影厅信息
-    const foundShowtime = mockShowtimes.find(s => s.id === params.id);
+    const foundShowtime = mockShowtimes.find(s => s.id === showtimeId);
     
     if (!foundShowtime) {
       router.push(staffRoutes.sell);
@@ -45,7 +43,7 @@ export default function StaffSeatSelectionPage({
       setMovie(foundMovie);
       setTheater(foundTheater);
     }
-  }, [params.id, router]);
+  }, [showtimeId, router]);
   
   // 处理座位选择
   const handleSeatSelection = (seatId: string) => {

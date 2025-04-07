@@ -1,6 +1,9 @@
-import React from 'react';
+'use client';
+
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { Star, Clock, Calendar, Film, User, ChevronDown } from 'lucide-react';
 import MobileLayout from '@/app/components/layout/MobileLayout';
@@ -8,17 +11,68 @@ import { defaultImages } from '@/app/lib/mockData';
 import { Card } from '@/app/components/ui/Card';
 import { MovieService, ShowtimeService, TheaterService } from '@/app/lib/services/dataService';
 import { userRoutes } from '@/app/lib/utils/navigation';
+import { Movie, Showtime, Theater } from '@/app/lib/types';
 
-// 将页面转换为服务器组件
-export default async function UserMovieDetail({ params }: { params: { id: string } }) {
-  // 先解构 params，处理 Promise
-  const resolvedParams = await params;
-  const movieId = resolvedParams.id;
+export default function UserMovieDetail() {
+  const params = useParams();
+  const movieId = typeof params.id === 'string' ? params.id : Array.isArray(params.id) ? params.id[0] : '';
   
-  // 服务器组件中直接使用异步数据获取
-  const movieData = await MovieService.getMovieById(movieId);
+  const [movie, setMovie] = useState<Movie | null>(null);
+  const [showtimes, setShowtimes] = useState<Showtime[]>([]);
+  const [theaters, setTheaters] = useState<Record<string, Theater>>({});
+  const [loading, setLoading] = useState(true);
   
-  if (!movieData) {
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setLoading(true);
+        
+        // 获取电影数据
+        const movieData = await MovieService.getMovieById(movieId);
+        
+        if (!movieData) {
+          setLoading(false);
+          return;
+        }
+        
+        setMovie(movieData);
+        
+        // 获取该电影的场次
+        const showtimesData = await ShowtimeService.getShowtimesByMovieId(movieId);
+        setShowtimes(showtimesData);
+        
+        // 获取所有影厅信息
+        const allTheaters = await TheaterService.getAllTheaters();
+        const theatersMap: Record<string, Theater> = {};
+        
+        allTheaters.forEach(theater => {
+          theatersMap[theater.id] = theater;
+        });
+        
+        setTheaters(theatersMap);
+      } catch (error) {
+        console.error('Failed to fetch movie data:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    if (movieId) {
+      fetchData();
+    }
+  }, [movieId]);
+  
+  if (loading) {
+    return (
+      <MobileLayout title="电影详情" showBackButton>
+        <div className="flex justify-center items-center p-8">
+          <div className="text-center">加载中...</div>
+        </div>
+      </MobileLayout>
+    );
+  }
+  
+  if (!movie) {
     return (
       <MobileLayout title="电影详情" showBackButton>
         <div className="flex flex-col items-center justify-center p-8">
@@ -34,18 +88,6 @@ export default async function UserMovieDetail({ params }: { params: { id: string
       </MobileLayout>
     );
   }
-  
-  const movie = movieData;
-  
-  // 获取该电影的场次
-  const showtimes = await ShowtimeService.getShowtimesByMovieId(movie.id);
-  
-  // 获取所有影厅信息
-  const allTheaters = await TheaterService.getAllTheaters();
-  const theaters: Record<string, any> = {};
-  allTheaters.forEach(theater => {
-    theaters[theater.id] = theater;
-  });
   
   return (
     <MobileLayout title="电影详情" showBackButton>

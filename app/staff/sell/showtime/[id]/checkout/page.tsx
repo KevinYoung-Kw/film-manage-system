@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { CreditCard, Check, Banknote, Wallet } from 'lucide-react';
 import MobileLayout from '@/app/components/layout/MobileLayout';
@@ -17,12 +17,10 @@ enum PaymentMethod {
   ALIPAY = 'alipay'
 }
 
-export default function StaffCheckoutPage({ 
-  params 
-}: { 
-  params: { id: string } 
-}) {
+export default function StaffCheckoutPage() {
   const router = useRouter();
+  const params = useParams();
+  const showtimeId = typeof params.id === 'string' ? params.id : Array.isArray(params.id) ? params.id[0] : '';
   const [orderData, setOrderData] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PaymentMethod.CASH);
   const [receivedAmount, setReceivedAmount] = useState<string>('');
@@ -35,7 +33,7 @@ export default function StaffCheckoutPage({
     if (savedOrder) {
       try {
         const parsedOrder = JSON.parse(savedOrder);
-        if (parsedOrder.showtimeId === params.id) {
+        if (parsedOrder.showtimeId === showtimeId) {
           setOrderData(parsedOrder);
           // 设置默认收款金额为订单总价
           setReceivedAmount(parsedOrder.totalPrice.toString());
@@ -51,7 +49,7 @@ export default function StaffCheckoutPage({
       // 没有找到订单数据，重定向到售票页面
       router.push(staffRoutes.sell);
     }
-  }, [params.id, router]);
+  }, [showtimeId, router]);
   
   // 获取票类型的显示名称
   const getTicketTypeLabel = (type: TicketType): string => {
