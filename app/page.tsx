@@ -1,103 +1,121 @@
-import Image from "next/image";
+import React from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
+import MobileLayout from './components/layout/MobileLayout';
+import { Card, CardContent } from './components/ui/Card';
+import MovieCard from './components/MovieCard';
+import { mockMovies } from './lib/mockData';
+import { defaultImages } from './lib/mockData';
+import { Film, Calendar, Ticket, ChevronRight } from 'lucide-react';
 
 export default function Home() {
+  // 选择一部热门电影作为Banner
+  const featuredMovie = mockMovies[0];
+  
+  // 热门电影列表
+  const popularMovies = mockMovies.slice(0, 4);
+  
+  // 即将上映的电影
+  const upcomingMovies = mockMovies.slice(1, 5);
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
+    <MobileLayout title="电影票务系统">
+      {/* Banner区域 */}
+      <div className="relative w-full h-64 mb-6">
         <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
+          src={featuredMovie.poster || defaultImages.banner}
+          alt="Banner"
+          fill
+          className="object-cover brightness-75"
           priority
         />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex flex-col justify-end p-4">
+          <h1 className="text-white text-2xl font-bold">{featuredMovie.title}</h1>
+          <p className="text-white/80 text-sm line-clamp-2 mt-1">
+            {featuredMovie.description}
+          </p>
+          <Link
+            href={`/movies/${featuredMovie.id}`}
+            className="bg-indigo-600 text-white text-center py-2 px-4 rounded-md mt-3 inline-block"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            立即购票
+          </Link>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      </div>
+
+      {/* 快捷操作 */}
+      <div className="grid grid-cols-3 gap-4 mb-6 px-4">
+        <Card className="p-3 text-center">
+          <CardContent>
+            <Link href="/movies" className="flex flex-col items-center">
+              <div className="h-12 w-12 rounded-full bg-indigo-100 flex items-center justify-center mb-2">
+                <Film className="h-6 w-6 text-indigo-600" />
+              </div>
+              <span className="text-sm">电影</span>
+            </Link>
+          </CardContent>
+        </Card>
+        <Card className="p-3 text-center">
+          <CardContent>
+            <Link href="/showtimes" className="flex flex-col items-center">
+              <div className="h-12 w-12 rounded-full bg-amber-100 flex items-center justify-center mb-2">
+                <Calendar className="h-6 w-6 text-amber-600" />
+              </div>
+              <span className="text-sm">场次</span>
+            </Link>
+          </CardContent>
+        </Card>
+        <Card className="p-3 text-center">
+          <CardContent>
+            <Link href="/orders" className="flex flex-col items-center">
+              <div className="h-12 w-12 rounded-full bg-emerald-100 flex items-center justify-center mb-2">
+                <Ticket className="h-6 w-6 text-emerald-600" />
+              </div>
+              <span className="text-sm">订单</span>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* 热门电影 */}
+      <div className="mb-6">
+        <div className="flex justify-between items-center px-4 mb-3">
+          <h2 className="text-lg font-semibold">热门电影</h2>
+          <Link href="/movies" className="text-indigo-600 text-sm flex items-center">
+            查看全部 <ChevronRight className="h-4 w-4" />
+          </Link>
+        </div>
+        <div className="overflow-x-auto pb-4">
+          <div className="flex px-4 gap-4" style={{ minWidth: 'max-content' }}>
+            {popularMovies.map(movie => (
+              <div key={movie.id} style={{ width: '150px' }}>
+                <MovieCard movie={movie} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 即将上映 */}
+      <div className="mb-6">
+        <div className="flex justify-between items-center px-4 mb-3">
+          <h2 className="text-lg font-semibold">即将上映</h2>
+          <Link href="/upcoming" className="text-indigo-600 text-sm flex items-center">
+            查看全部 <ChevronRight className="h-4 w-4" />
+          </Link>
+        </div>
+        <div className="px-4 space-y-3">
+          {upcomingMovies.map(movie => (
+            <MovieCard key={movie.id} movie={movie} variant="compact" />
+          ))}
+        </div>
+      </div>
+
+      {/* 底部信息 */}
+      <div className="text-center mt-8 mb-4 px-4 text-slate-400 text-xs">
+        <p>© 2024 电影票务系统</p>
+        <p className="mt-1">影院地址: 中国某省某市某区某街道123号</p>
+      </div>
+    </MobileLayout>
   );
 }

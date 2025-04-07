@@ -1,36 +1,128 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 电影票务管理系统
 
-## Getting Started
+一个基于Next.js构建的多用户移动端电影票务管理应用，使用Tailwind CSS样式，采用Notion风格设计。
 
-First, run the development server:
+## 项目介绍
+
+本系统为一个完整的电影院票务管理解决方案，主要包含三类用户：
+
+1. **影院管理员**：负责电影排片、影厅管理、票价设置、售票管理等。
+2. **售票员**：负责电影票销售、退票、改签等。
+3. **观众**：使用系统进行电影查询、购票、选座、支付等。
+
+当前版本主要实现了观众使用的电影购票系统，管理员和售票员的功能仅搭建了基本框架。
+
+## 技术栈
+
+- **前端框架**：Next.js 15+
+- **UI框架**：Tailwind CSS 4.0
+- **状态管理**：React Hooks
+- **组件库**：自定义组件（Notion风格）
+- **图标库**：Lucide React
+- **数据模拟**：本地模拟数据
+- **日期处理**：date-fns
+
+## 功能特性
+
+### 观众端
+
+- [x] 电影浏览和搜索
+- [x] 电影详情查看
+- [x] 场次选择
+- [x] 座位选择
+- [x] 订单创建
+- [x] 支付模拟
+- [x] 订单管理
+
+### 管理员端（基础框架）
+
+- [x] 电影管理
+- [x] 排片管理
+- [x] 影厅管理
+- [x] 员工管理
+- [x] 数据统计
+
+### 售票员端（基础框架）
+
+- [x] 售票系统
+- [x] 检票系统
+- [x] 退票处理
+- [x] 操作记录
+
+## 项目目录结构
+
+```
+app/
+  ├── (routes)/              # 路由分组
+  │   ├── (auth)/            # 认证相关路由
+  │   ├── (user)/            # 观众用户路由
+  │   ├── (admin)/           # 管理员路由
+  │   └── (staff)/           # 售票员路由
+  ├── components/            # 组件
+  │   ├── layout/            # 布局组件
+  │   └── ui/                # UI组件
+  ├── lib/                   # 工具和数据
+  │   ├── types/             # 类型定义
+  │   ├── hooks/             # 自定义钩子
+  │   └── mockData.ts        # 模拟数据
+  ├── globals.css            # 全局样式
+  └── page.tsx               # 首页
+```
+
+## 数据模型
+
+系统包含以下主要数据模型：
+
+- **用户(User)**：包括管理员、售票员和观众
+- **电影(Movie)**：电影基本信息
+- **影厅(Theater)**：影院的放映厅信息
+- **座位(Seat)**：影厅座位信息
+- **场次(Showtime)**：电影排期场次
+- **订单(Order)**：购票订单
+
+## 快速开始
+
+### 安装依赖
+
+```bash
+npm install
+```
+
+### 开发模式
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 构建项目
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run build
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 运行构建后的项目
 
-## Learn More
+```bash
+npm start
+```
 
-To learn more about Next.js, take a look at the following resources:
+## 测试账户
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+系统预设了以下测试账户（密码统一为：123456）：
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- 管理员: admin@example.com
+- 售票员: staff1@example.com
+- 观众: customer1@example.com / customer2@example.com
 
-## Deploy on Vercel
+## 后续计划
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. 接入Supabase数据库，实现真实数据存储
+2. 完善管理员和售票员功能
+3. 添加用户认证和权限管理
+4. 实现电影评分和评论功能
+5. 添加会员系统和积分管理
+6. 优化移动端体验
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 许可证
+
+MIT
