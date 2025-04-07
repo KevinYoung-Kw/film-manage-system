@@ -146,6 +146,33 @@ npm run build
 npm start
 ```
 
+## Vercel部署指南
+
+本项目已配置为可以直接部署到Vercel平台。按照以下步骤进行部署：
+
+1. 在GitHub上fork或创建代码仓库
+2. 将项目代码推送到仓库中
+3. 登录[Vercel](https://vercel.com/)，点击"New Project"
+4. 选择GitHub仓库中的该项目
+5. Vercel会自动检测Next.js项目并设置默认配置
+6. 点击"Deploy"按钮开始部署
+
+### 环境变量设置
+
+在Vercel部署界面的"Environment Variables"部分添加以下环境变量：
+
+- `NEXT_PUBLIC_SITE_URL`: 你的站点URL（如https://your-app.vercel.app）
+- `NEXT_PUBLIC_SITE_NAME`: 站点名称（如：电影管理系统）
+
+### 自定义域名
+
+部署成功后，可以在Vercel项目设置中添加自定义域名：
+
+1. 进入项目仪表板
+2. 点击"Settings" > "Domains"
+3. 添加您的自定义域名
+4. 按照Vercel提供的DNS配置说明进行域名解析设置
+
 ## 测试账户
 
 系统预设了以下测试账户（密码统一为：123456）：
