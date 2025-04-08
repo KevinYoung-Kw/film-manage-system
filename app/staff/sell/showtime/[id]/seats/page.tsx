@@ -205,4 +205,15 @@ export default function StaffSeatSelectionPage() {
                     ticketCount === count 
                       ? 'bg-indigo-600 text-white' 
                       : 'bg-slate-100 text-slate-700'
-                  }`
+                  }`}
+                >
+                  {count}
+                </button>
+              ))}
+            </div>
+          </div>
+        </Card>
+      </div>
+    </MobileLayout>
+  );
+}

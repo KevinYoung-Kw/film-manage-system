@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Settings, Bell, Moon, Globe, Shield, LogOut, ChevronRight, Users, DollarSign, BarChart2 } from 'lucide-react';
 import Link from 'next/link';
+import { useAppContext } from '@/app/lib/context/AppContext';
 
 export default function SettingsPage() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [darkModeEnabled, setDarkModeEnabled] = useState(false);
+  const { darkMode, toggleDarkMode } = useAppContext(); 
   const [language, setLanguage] = useState('中文');
 
   return (
@@ -33,36 +34,31 @@ export default function SettingsPage() {
       
       {/* 管理功能入口 */}
       <div className="bg-white rounded-lg shadow p-4 mb-6">
-        <h2 className="font-medium mb-4">管理功能</h2>
+        <h2 className="font-medium mb-4">系统管理</h2>
         
-        <div className="space-y-4">
-          <Link href="/admin/staff" className="flex items-center justify-between py-2 hover:bg-gray-50 px-2 rounded">
-            <div className="flex items-center">
-              <Users size={18} className="text-indigo-600 mr-3" />
-              <span>员工管理</span>
-            </div>
-            <ChevronRight size={16} className="text-gray-400" />
+        <div className="grid grid-cols-2 gap-4">
+          <Link href="/admin/users" className="flex flex-col items-center justify-center bg-indigo-50 text-indigo-600 p-4 rounded-lg">
+            <Users size={24} className="mb-2" />
+            <span className="text-sm">用户管理</span>
           </Link>
           
-          <Link href="/admin/pricing" className="flex items-center justify-between py-2 hover:bg-gray-50 px-2 rounded">
-            <div className="flex items-center">
-              <DollarSign size={18} className="text-indigo-600 mr-3" />
-              <span>票价设置</span>
-            </div>
-            <ChevronRight size={16} className="text-gray-400" />
+          <Link href="/admin/stats" className="flex flex-col items-center justify-center bg-blue-50 text-blue-600 p-4 rounded-lg">
+            <BarChart2 size={24} className="mb-2" />
+            <span className="text-sm">数据统计</span>
           </Link>
           
-          <Link href="/admin/stats" className="flex items-center justify-between py-2 hover:bg-gray-50 px-2 rounded">
-            <div className="flex items-center">
-              <BarChart2 size={18} className="text-indigo-600 mr-3" />
-              <span>数据统计</span>
-            </div>
-            <ChevronRight size={16} className="text-gray-400" />
+          <Link href="/admin/pricing" className="flex flex-col items-center justify-center bg-green-50 text-green-600 p-4 rounded-lg">
+            <DollarSign size={24} className="mb-2" />
+            <span className="text-sm">票价设置</span>
+          </Link>
+          
+          <Link href="/admin/theaters" className="flex flex-col items-center justify-center bg-amber-50 text-amber-600 p-4 rounded-lg">
+            <Settings size={24} className="mb-2" />
+            <span className="text-sm">影厅配置</span>
           </Link>
         </div>
       </div>
       
-      {/* 应用设置 */}
       <div className="bg-white rounded-lg shadow p-4 mb-6">
         <h2 className="font-medium mb-4">应用设置</h2>
         
@@ -94,8 +90,8 @@ export default function SettingsPage() {
               <input 
                 type="checkbox" 
                 className="sr-only peer" 
-                checked={darkModeEnabled}
-                onChange={() => setDarkModeEnabled(!darkModeEnabled)}
+                checked={darkMode}
+                onChange={toggleDarkMode}
               />
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
             </label>

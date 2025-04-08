@@ -19,6 +19,7 @@ export default function AdminLayout({
     if (pathname.includes('/admin/pricing')) return '票价设置';
     if (pathname.includes('/admin/stats')) return '数据统计';
     if (pathname.includes('/admin/settings')) return '系统设置';
+    if (pathname.includes('/admin/profile')) return '个人中心';
     return '管理系统';
   };
   

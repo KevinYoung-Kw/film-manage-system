@@ -12,9 +12,11 @@ import { Card } from '@/app/components/ui/Card';
 import Button from '@/app/components/ui/Button';
 import { mockUsers, siteInfo } from '@/app/lib/mockData';
 import { UserRole } from '@/app/lib/types';
+import { useAppContext } from '@/app/lib/context/AppContext';
 
 export default function ProfilePage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const { logout } = useAppContext();
   
   useEffect(() => {
     // 从本地存储获取用户信息，或使用模拟用户
@@ -38,9 +40,8 @@ export default function ProfilePage() {
     );
   }
   
-  const handleLogout = () => {
-    localStorage.removeItem('currentUser');
-    window.location.href = '/login';
+  const handleLogout = async () => {
+    await logout();
   };
   
   return (

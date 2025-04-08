@@ -1,14 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
-import { mockTheaters } from '@/app/lib/mockData';
+import React, { useState, useEffect } from 'react';
 import { Plus, Monitor, Layout, Settings, X, Grid, Save, Check, Wand2 } from 'lucide-react';
+import { useAppContext } from '@/app/lib/context/AppContext';
+import { Theater } from '@/app/lib/types';
+import { TheaterService } from '@/app/lib/services/dataService';
 
 export default function TheatersManagementPage() {
+  const { theaters, updateTheater, updateTheaterLayout, addTheater } = useAppContext();
   const [showAddModal, setShowAddModal] = useState(false);
   const [showSeatLayoutModal, setShowSeatLayoutModal] = useState(false);
   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
-  const [currentTheater, setCurrentTheater] = useState<any>(null);
+  const [currentTheater, setCurrentTheater] = useState<Theater | null>(null);
   const [seatLayout, setSeatLayout] = useState<Array<Array<string>>>([]);
   const [editMode, setEditMode] = useState<'single' | 'batch'>('single');
   const [selectedSeatType, setSelectedSeatType] = useState<string>('normal');
@@ -17,6 +20,69 @@ export default function TheatersManagementPage() {
   const [equipments, setEquipments] = useState<Array<any>>([]);
   const [showEquipmentDetailModal, setShowEquipmentDetailModal] = useState(false);
   const [currentEquipment, setCurrentEquipment] = useState<any>(null);
+  
+  // 新影厅表单数据
+  const [newTheater, setNewTheater] = useState({
+    name: '',
+    rows: 8,
+    columns: 10,
+    equipment: ''
+  });
+  
+  // 处理新影厅表单变化
+  const handleNewTheaterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setNewTheater({
+      ...newTheater,
+      [name]: name === 'rows' || name === 'columns' ? parseInt(value) || 0 : value
+    });
+  };
+  
+  // 保存新影厅
+  const handleSaveNewTheater = async () => {
+    if (!newTheater.name) {
+      alert('请输入影厅名称');
+      return;
+    }
+    
+    if (newTheater.rows <= 0 || newTheater.columns <= 0) {
+      alert('排数和座位数必须大于0');
+      return;
+    }
+    
+    // 处理设备输入，以逗号分隔
+    const equipmentList = newTheater.equipment
+      ? newTheater.equipment.split(',').map(item => item.trim()).filter(Boolean)
+      : [];
+    
+    try {
+      // 调用 AppContext 方法添加影厅
+      await addTheater({
+        name: newTheater.name,
+        rows: newTheater.rows,
+        columns: newTheater.columns,
+        totalSeats: newTheater.rows * newTheater.columns, // 计算总座位数
+        equipment: equipmentList
+      });
+      
+      // 重置表单并关闭模态框
+      setNewTheater({
+        name: '',
+        rows: 8,
+        columns: 10,
+        equipment: ''
+      });
+      
+      setSaveSuccess(true);
+      
+      setTimeout(() => {
+        setSaveSuccess(false);
+        setShowAddModal(false);
+      }, 1500);
+    } catch (error) {
+      console.error('添加影厅失败:', error);
+    }
+  };
   
   // 座位类型配置
   const seatTypes = [
@@ -28,7 +94,7 @@ export default function TheatersManagementPage() {
   ];
   
   // 生成座位布局图
-  const generateSeatLayout = (theater: any) => {
+  const generateSeatLayout = (theater: Theater) => {
     const layout: Array<Array<string>> = [];
     
     for (let row = 0; row < theater.rows; row++) {
@@ -49,13 +115,31 @@ export default function TheatersManagementPage() {
     return layout;
   };
   
-  const handleViewSeatLayout = (theater: any) => {
+  const handleViewSeatLayout = async (theater: Theater) => {
     setCurrentTheater(theater);
-    setSeatLayout(generateSeatLayout(theater));
-    setShowSeatLayoutModal(true);
+    
+    try {
+      // 先尝试从服务层获取保存的座位布局
+      const savedLayout = await TheaterService.getSeatLayoutTypes(theater.id);
+      
+      if (savedLayout && savedLayout.length > 0) {
+        // 使用已保存的布局
+        setSeatLayout(savedLayout);
+      } else {
+        // 没有保存过布局，使用生成的默认布局
+        setSeatLayout(generateSeatLayout(theater));
+      }
+      
+      setShowSeatLayoutModal(true);
+    } catch (error) {
+      console.error('获取座位布局失败:', error);
+      // 出错时使用默认生成的布局
+      setSeatLayout(generateSeatLayout(theater));
+      setShowSeatLayoutModal(true);
+    }
   };
   
-  const handleManageEquipment = (theater: any) => {
+  const handleManageEquipment = (theater: Theater) => {
     setCurrentTheater(theater);
     
     // 转换设备数据格式
@@ -107,14 +191,27 @@ export default function TheatersManagementPage() {
   };
   
   // 保存设备信息
-  const handleSaveEquipment = () => {
-    // 在实际应用中，这里会调用API保存设备信息
-    setSaveSuccess(true);
+  const handleSaveEquipment = async () => {
+    if (!currentTheater) return;
     
-    setTimeout(() => {
-      setSaveSuccess(false);
-      setShowEquipmentModal(false);
-    }, 1500);
+    // 提取设备名称
+    const equipmentNames = equipments.map(equipment => equipment.name).filter(Boolean);
+    
+    // 使用 updateTheater 更新影厅设备信息
+    try {
+      await updateTheater(currentTheater.id, {
+        equipment: equipmentNames
+      });
+      
+      setSaveSuccess(true);
+      
+      setTimeout(() => {
+        setSaveSuccess(false);
+        setShowEquipmentModal(false);
+      }, 1500);
+    } catch (error) {
+      console.error('保存设备信息失败:', error);
+    }
   };
   
   // 处理单个座位类型切换
@@ -175,14 +272,33 @@ export default function TheatersManagementPage() {
   };
   
   // 保存座位布局
-  const handleSaveSeatLayout = () => {
-    // 在实际应用中，这里会调用API保存座位布局
-    setSaveSuccess(true);
+  const handleSaveSeatLayout = async () => {
+    if (!currentTheater) return;
     
-    setTimeout(() => {
-      setSaveSuccess(false);
-      setShowSeatLayoutModal(false);
-    }, 1500);
+    // 计算座位总数（不包括空位）
+    let totalSeats = 0;
+    seatLayout.forEach(row => {
+      row.forEach(type => {
+        if (type !== 'empty') totalSeats++;
+      });
+    });
+    
+    try {
+      // 先更新行列数
+      await updateTheaterLayout(currentTheater.id, seatLayout.length, seatLayout[0]?.length || 0);
+      
+      // 然后调用服务层方法保存详细的座位布局信息
+      await TheaterService.updateSeatLayoutTypes(currentTheater.id, seatLayout);
+      
+      setSaveSuccess(true);
+      
+      setTimeout(() => {
+        setSaveSuccess(false);
+        setShowSeatLayoutModal(false);
+      }, 1500);
+    } catch (error) {
+      console.error('保存座位布局失败:', error);
+    }
   };
   
   return (
@@ -207,7 +323,7 @@ export default function TheatersManagementPage() {
       
       {/* 影厅列表 */}
       <div className="grid gap-4">
-        {mockTheaters.map(theater => (
+        {theaters.map(theater => (
           <div key={theater.id} className="bg-white rounded-lg shadow overflow-hidden">
             <div className="p-4">
               <div className="flex justify-between items-start">
@@ -264,22 +380,52 @@ export default function TheatersManagementPage() {
               </button>
             </div>
             <div className="p-4">
-              <form className="space-y-4">
+              <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); handleSaveNewTheater(); }}>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">影厅名称</label>
-                  <input type="text" className="w-full p-2 border rounded-md" placeholder="例如: 1号厅 - IMAX" />
+                  <input 
+                    type="text" 
+                    name="name"
+                    className="w-full p-2 border rounded-md" 
+                    placeholder="例如: 1号厅 - IMAX" 
+                    value={newTheater.name}
+                    onChange={handleNewTheaterChange}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">排数</label>
-                  <input type="number" className="w-full p-2 border rounded-md" placeholder="例如: 10" />
+                  <input 
+                    type="number" 
+                    name="rows"
+                    className="w-full p-2 border rounded-md" 
+                    placeholder="例如: 10" 
+                    value={newTheater.rows}
+                    onChange={handleNewTheaterChange}
+                    min="1"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">每排座位数</label>
-                  <input type="number" className="w-full p-2 border rounded-md" placeholder="例如: 12" />
+                  <input 
+                    type="number" 
+                    name="columns"
+                    className="w-full p-2 border rounded-md" 
+                    placeholder="例如: 12" 
+                    value={newTheater.columns}
+                    onChange={handleNewTheaterChange}
+                    min="1"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">设备</label>
-                  <input type="text" className="w-full p-2 border rounded-md" placeholder="例如: IMAX, 杜比全景声" />
+                  <input 
+                    type="text" 
+                    name="equipment"
+                    className="w-full p-2 border rounded-md" 
+                    placeholder="例如: IMAX, 杜比全景声 (用逗号分隔)" 
+                    value={newTheater.equipment}
+                    onChange={handleNewTheaterChange}
+                  />
                 </div>
                 <div className="flex gap-2 pt-2">
                   <button 
@@ -290,7 +436,7 @@ export default function TheatersManagementPage() {
                     取消
                   </button>
                   <button 
-                    type="button"
+                    type="submit"
                     className="flex-1 bg-indigo-600 text-white py-2 rounded-md"
                   >
                     保存

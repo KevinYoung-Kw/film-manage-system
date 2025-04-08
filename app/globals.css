@@ -3,6 +3,29 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --card-bg: #ffffff;
+  --card-border: #eaeaea;
+  --input-bg: #ffffff;
+  --input-border: #e5e7eb;
+  --primary-color: #4f46e5;
+  --primary-hover: #4338ca;
+  --success-color: #10b981;
+  --error-color: #ef4444;
+  --warning-color: #f59e0b;
+}
+
+.dark {
+  --background: #121212;
+  --foreground: #e5e5e5;
+  --card-bg: #1e1e1e;
+  --card-border: #2e2e2e;
+  --input-bg: #2d2d2d;
+  --input-border: #3d3d3d;
+  --primary-color: #6366f1;
+  --primary-hover: #4f46e5;
+  --success-color: #059669;
+  --error-color: #dc2626;
+  --warning-color: #d97706;
 }
 
 @theme inline {
@@ -13,9 +36,18 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not(.dark):not(.light) {
+    --background: #121212;
+    --foreground: #e5e5e5;
+    --card-bg: #1e1e1e;
+    --card-border: #2e2e2e;
+    --input-bg: #2d2d2d;
+    --input-border: #3d3d3d;
+    --primary-color: #6366f1;
+    --primary-hover: #4f46e5;
+    --success-color: #059669;
+    --error-color: #dc2626;
+    --warning-color: #d97706;
   }
 }
 
@@ -23,4 +55,37 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* 暗黑模式下的组件样式覆盖 */
+.dark .bg-white {
+  background-color: var(--card-bg);
+}
+
+.dark .border-slate-100,
+.dark .border-slate-200 {
+  border-color: var(--card-border);
+}
+
+.dark .text-slate-800 {
+  color: var(--foreground);
+}
+
+.dark .text-slate-700,
+.dark .text-slate-600,
+.dark .text-slate-500 {
+  color: #a1a1aa;
+}
+
+.dark .text-slate-400 {
+  color: #71717a;
+}
+
+.dark .shadow,
+.dark .shadow-sm {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+.dark .bg-slate-50 {
+  background-color: #121212;
 }

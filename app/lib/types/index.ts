@@ -47,6 +47,12 @@ export interface Theater {
   equipment: string[]; // 设备列表，如 "3D", "IMAX", "4D"等
 }
 
+// 座位布局类型
+export interface TheaterSeatLayout {
+  theaterId: string;
+  layout: Array<Array<string>>; // 行、列、座位类型的二维数组
+}
+
 // 座位类型
 export interface Seat {
   id: string;

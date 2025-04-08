@@ -1,4 +1,4 @@
-import { User, UserRole, Movie, Theater, Showtime, Order, OrderStatus, TicketType, MovieStatus, StaffOperation, StaffOperationType, StaffSchedule, ShiftType } from './types';
+import { User, UserRole, Movie, Theater, Showtime, Order, OrderStatus, TicketType, MovieStatus, StaffOperation, StaffOperationType, StaffSchedule, ShiftType, Seat } from './types';
 
 // 默认图片资源
 export const defaultImages = {
@@ -7,6 +7,38 @@ export const defaultImages = {
   avatar: '/images/default-avatar.jpg',
   theater: '/images/default-theater.jpg',
   logo: '/images/logo.png'
+};
+
+/**
+ * 生成初始座位数据
+ */
+const generateInitialSeats = (theater: Theater): Seat[] => {
+  const seats: Seat[] = [];
+  
+  for (let row = 1; row <= theater.rows; row++) {
+    for (let col = 1; col <= theater.columns; col++) {
+      // 简单的逻辑：边角座位设为情侣座，中间两排为VIP座位
+      let type: 'normal' | 'vip' | 'couple' | 'disabled' = 'normal';
+      
+      if ((row === 1 && col === 1) || (row === theater.rows && col === theater.columns)) {
+        type = 'couple';
+      } else if (row === Math.floor(theater.rows / 2) || row === Math.floor(theater.rows / 2) + 1) {
+        type = 'vip';
+      } else if (row === theater.rows && col === 1) {
+        type = 'disabled';
+      }
+      
+      seats.push({
+        id: `seat-${theater.id}-${row}-${col}`,
+        row,
+        column: col,
+        type,
+        available: Math.random() > 0.2 // 随机生成一些已售出座位
+      });
+    }
+  }
+  
+  return seats;
 };
 
 // 网站信息
@@ -23,96 +55,96 @@ export const siteInfo = {
 export const mockMovies: Movie[] = [
   {
     id: "movie1",
-    title: "流浪地球2",
-    originalTitle: "The Wandering Earth II",
-    description: "太阳即将毁灭，人类在地球表面建造出巨大的推进器，寻找新家园。然而宇宙之路危机四伏，为了拯救地球，流浪地球时代的年轻人再次挺身而出，展开争分夺秒的生死之战。",
-    director: "郭帆",
-    actors: ["吴京", "刘德华", "李雪健", "沙溢"],
-    cast: ["吴京", "刘德华", "李雪健", "沙溢", "宁理", "王智", "朱颜曼滋", "安地"],
-    genre: ["科幻", "冒险", "灾难"],
-    duration: 173,
-    rating: 8.2,
-    releaseDate: new Date("2023-01-22"),
+    title: "星际迷航：超越边界",
+    originalTitle: "Star Trek: Beyond Boundaries",
+    description: "2127年，星际联盟探索舰队发现一个神秘的星际通道，可能连接到未知宇宙。舰队指挥官林宇辰带领精英团队穿越通道，意外发现一个与地球平行发展的文明。他们必须在两个世界的冲突中寻找和平，同时解开通道背后的宇宙奥秘。",
+    director: "林超能",
+    actors: ["王大锤", "李小方", "张绝绝子", "麦克风"],
+    cast: ["王大锤", "李小方", "张绝绝子", "麦克风", "赵火箭", "钱满袋", "孙传奇", "周真香"],
+    genre: ["科幻", "冒险", "动作"],
+    duration: 145,
+    rating: 8.7,
+    releaseDate: new Date("2025-04-06"),
     poster: defaultImages.moviePoster,
     status: MovieStatus.SHOWING
   },
   {
     id: "movie2",
-    title: "独行月球",
-    poster: "https://img1.doubanio.com/view/photo/l/public/p2876409008.webp",
-    duration: 122,
-    director: "张小北",
-    actors: ["沈腾", "马丽", "常远", "李诞"],
-    description: "人类为抵御小行星的撞击，拯救地球，在月球部署了月盾计划。但由于意外，一名中国宇航员执行月盾计划时被困在了月球。",
-    releaseDate: new Date("2023-07-29"),
-    genre: ["喜剧", "科幻"],
-    rating: 7.8,
+    title: "幻象追踪",
+    poster: defaultImages.moviePoster,
+    duration: 118,
+    director: "陈不看",
+    actors: ["高启强", "高启盛", "安静", "海绵宝"],
+    description: "著名物理学家陈磊研发出一种可以探测人类梦境的技术，却意外发现某些梦境竟然是现实中从未发生过的记忆碎片。当他深入调查，发现自己可能处于一个比梦境更为复杂的现实中。在追寻真相的过程中，他必须面对自己内心深处的恐惧。",
+    releaseDate: new Date("2025-04-08"),
+    genre: ["悬疑", "科幻", "心理"],
+    rating: 8.5,
     status: MovieStatus.SHOWING
   },
   {
     id: "movie3",
-    title: "长安三万里",
-    poster: "https://img1.doubanio.com/view/photo/s_ratio_poster/public/p2892364610.webp",
-    duration: 138,
-    director: "刘海波",
-    actors: ["王凯", "李雪健", "吴磊", "沈腾"],
-    description: "盛唐时期，诗人高适与李白的传奇友谊，以及他们在大唐盛世的奇异冒险。",
-    releaseDate: new Date("2023-07-08"),
-    genre: ["动画", "历史", "奇幻"],
-    rating: 8.3,
+    title: "春日告白",
+    poster: defaultImages.moviePoster,
+    duration: 112,
+    director: "赵糖糖",
+    actors: ["何止一点", "陈伟笑", "刘会唱", "李芒果"],
+    description: "大学教授林夏与心理医生顾一舟是青梅竹马，却因一场误会分开多年。当命运再次将他们带到同一所大学工作时，他们不得不面对过去的心结，以及那些未曾说出口的感情。一场春日樱花雨中的邂逅，让他们有机会重新审视彼此的心意。",
+    releaseDate: new Date("2025-04-10"),
+    genre: ["爱情", "剧情"],
+    rating: 7.9,
     status: MovieStatus.SHOWING
   },
   {
     id: "movie4",
-    title: "奥本海默",
-    poster: "https://img9.doubanio.com/view/photo/s_ratio_poster/public/p2895145309.webp",
-    duration: 180,
-    director: "克里斯托弗·诺兰",
-    actors: ["基里安·墨菲", "艾米丽·布朗特", "马特·达蒙", "小罗伯特·唐尼"],
-    description: "本片聚焦于美国物理学家J·罗伯特·奥本海默的故事，他被称为'原子弹之父'。",
-    releaseDate: new Date("2023-08-30"),
-    genre: ["传记", "历史", "剧情"],
-    rating: 9.0,
+    title: "暗影追踪者",
+    poster: defaultImages.moviePoster,
+    duration: 135,
+    director: "吴梗王",
+    actors: ["黄飞鸿", "倪好笑", "张艺猛", "周一围"],
+    description: "特别行动组组长萧风在一次卧底任务中失忆，醒来后发现自己深陷一个庞大的犯罪集团内部。他必须在不知道自己真实身份的情况下，依靠本能和零碎的记忆完成任务，同时寻找自己的过去。背叛与忠诚的界限在他的世界中逐渐模糊。",
+    releaseDate: new Date("2025-04-07"),
+    genre: ["动作", "犯罪", "悬疑"],
+    rating: 8.8,
     status: MovieStatus.SHOWING
   },
   {
     id: "movie5",
-    title: "坚如磐石",
-    poster: "https://img1.doubanio.com/view/photo/s_ratio_poster/public/p2895107941.webp",
-    duration: 128,
-    director: "张艺谋",
-    actors: ["雷佳音", "张国立", "于和伟", "周冬雨"],
-    description: "这是一部犯罪题材电影，讲述了一桩看似简单的自杀案引出的一系列黑幕，以及主人公与幕后黑手斗智斗勇的故事。",
-    releaseDate: new Date("2023-09-28"),
-    genre: ["犯罪", "悬疑", "剧情"],
-    rating: 7.5,
+    title: "城市之光",
+    poster: defaultImages.moviePoster,
+    duration: 152,
+    director: "冯导演",
+    actors: ["胡一刀", "孙悟饭", "邓不群", "宋江湖"],
+    description: "这部史诗般的城市群像剧讲述了在2025年的中国大都市中，五个不同阶层、不同职业的人物，如何在经济转型的大潮中找寻自我价值与人生意义。从打工族到企业家，从教师到艺术家，他们的故事交织成一幅现代都市生活的全景图。",
+    releaseDate: new Date("2025-04-12"),
+    genre: ["剧情", "社会", "家庭"],
+    rating: 9.1,
     status: MovieStatus.COMING_SOON
   },
   {
     id: "movie6",
-    title: "孤注一掷",
-    poster: "https://img1.doubanio.com/view/photo/s_ratio_poster/public/p2895465725.webp", 
-    duration: 137,
-    director: "申奥",
-    actors: ["张艺兴", "王戈", "刘浩存", "范伟"],
-    description: "一场意外中，建筑工人潘生意外坠楼，为了给女儿治病，他铤而走险踏上了一条危险的路。",
-    releaseDate: new Date("2023-08-18"),
-    genre: ["犯罪", "剧情"],
-    rating: 7.3,
+    title: "微光之下",
+    poster: defaultImages.moviePoster, 
+    duration: 128,
+    director: "王不二",
+    actors: ["梁非凡", "汤圆圆", "井底蛙", "猪猪侠"],
+    description: "在一个永远不见天日的地下城市，人们已经习惯了人造光源的生活。年轻的工程师李明偶然发现了通往地面的秘密通道，却在踏上寻找真实阳光的旅程中，发现关于地下城市起源的惊人真相。这是一个关于勇气、真相与希望的故事。",
+    releaseDate: new Date("2025-04-15"),
+    genre: ["科幻", "冒险", "剧情"],
+    rating: 8.4,
     status: MovieStatus.COMING_SOON
   },
   {
     id: "movie7",
-    title: "封神第一部",
-    poster: "https://img2.doubanio.com/view/photo/s_ratio_poster/public/p2889966987.webp",
-    duration: 148,
-    director: "乌尔善",
-    actors: ["费翔", "李雪健", "黄渤", "于适"],
-    description: "商王殷寿与狐妖妲己勾结，暴虐无道，引发天谴。姬昌率领的西周和阐教弟子妄图讨伐商王，却遭到以申公豹为首的截教弟子的阻挠。",
-    releaseDate: new Date("2023-07-20"),
-    genre: ["奇幻", "动作", "古装"],
-    rating: 7.0,
-    status: MovieStatus.OFF_SHOWING
+    title: "古城疑云",
+    poster: defaultImages.moviePoster,
+    duration: 142,
+    director: "陈可口",
+    actors: ["张麻花", "章小蕙", "黄小厨", "周星星"],
+    description: "民国时期，考古学家肖然带队前往西北古城遗址考察，却接连发生离奇事件。当地传说古城因一场灾难一夜消失，但随着考古深入，他们发现古城背后隐藏着一个跨越千年的秘密，以及一个关乎华夏文明起源的惊天发现。",
+    releaseDate: new Date("2025-04-09"),
+    genre: ["历史", "冒险", "悬疑"],
+    rating: 8.2,
+    status: MovieStatus.SHOWING
   }
 ];
 
@@ -144,107 +176,105 @@ export const mockTheaters: Theater[] = [
   }
 ];
 
-// 生成座位数据的辅助函数
-const generateSeats = (theater: Theater) => {
-  const seats = [];
-  
-  for (let row = 1; row <= theater.rows; row++) {
-    for (let col = 1; col <= theater.columns; col++) {
-      // 简单的逻辑：边角座位设为情侣座，中间两排为VIP座位
-      let type: 'normal' | 'vip' | 'couple' | 'disabled' = 'normal';
-      
-      if ((row === 1 && col === 1) || (row === theater.rows && col === theater.columns)) {
-        type = 'couple';
-      } else if (row === Math.floor(theater.rows / 2) || row === Math.floor(theater.rows / 2) + 1) {
-        type = 'vip';
-      } else if (row === theater.rows && col === 1) {
-        type = 'disabled';
-      }
-      
-      seats.push({
-        id: `seat-${theater.id}-${row}-${col}`,
-        row,
-        column: col,
-        type,
-        available: Math.random() > 0.2 // 随机生成一些已售出座位
-      });
-    }
-  }
-  
-  return seats;
-};
-
 // 模拟电影场次数据
 export const mockShowtimes: Showtime[] = [
   {
     id: "showtime1",
     movieId: "movie1",
     theaterId: "theater1",
-    startTime: new Date("2024-05-01T10:00:00"),
-    endTime: new Date("2024-05-01T12:25:00"),
+    startTime: new Date("2025-04-06T10:00:00"),
+    endTime: new Date("2025-04-06T12:25:00"),
     price: {
       [TicketType.NORMAL]: 80,
       [TicketType.STUDENT]: 40,
       [TicketType.SENIOR]: 40,
       [TicketType.CHILD]: 40
     },
-    availableSeats: generateSeats(mockTheaters[0])
+    availableSeats: generateInitialSeats(mockTheaters[0])
   },
   {
     id: "showtime2",
     movieId: "movie1",
     theaterId: "theater1",
-    startTime: new Date("2024-05-01T14:00:00"),
-    endTime: new Date("2024-05-01T16:25:00"),
+    startTime: new Date("2025-04-06T14:00:00"),
+    endTime: new Date("2025-04-06T16:25:00"),
     price: {
       [TicketType.NORMAL]: 80,
       [TicketType.STUDENT]: 40,
       [TicketType.SENIOR]: 40,
       [TicketType.CHILD]: 40
     },
-    availableSeats: generateSeats(mockTheaters[0])
+    availableSeats: generateInitialSeats(mockTheaters[0])
   },
   {
     id: "showtime3",
     movieId: "movie2",
     theaterId: "theater2",
-    startTime: new Date("2024-05-01T11:30:00"),
-    endTime: new Date("2024-05-01T13:32:00"),
+    startTime: new Date("2025-04-08T11:30:00"),
+    endTime: new Date("2025-04-08T13:28:00"),
     price: {
       [TicketType.NORMAL]: 60,
       [TicketType.STUDENT]: 30,
       [TicketType.SENIOR]: 30,
       [TicketType.CHILD]: 30
     },
-    availableSeats: generateSeats(mockTheaters[1])
+    availableSeats: generateInitialSeats(mockTheaters[1])
   },
   {
     id: "showtime4",
     movieId: "movie3",
     theaterId: "theater3",
-    startTime: new Date("2024-05-01T13:00:00"),
-    endTime: new Date("2024-05-01T15:18:00"),
+    startTime: new Date("2025-04-10T13:00:00"),
+    endTime: new Date("2025-04-10T14:52:00"),
     price: {
       [TicketType.NORMAL]: 50,
       [TicketType.STUDENT]: 25,
       [TicketType.SENIOR]: 25,
       [TicketType.CHILD]: 25
     },
-    availableSeats: generateSeats(mockTheaters[2])
+    availableSeats: generateInitialSeats(mockTheaters[2])
   },
   {
     id: "showtime5",
     movieId: "movie4",
     theaterId: "theater1",
-    startTime: new Date("2024-05-01T19:00:00"),
-    endTime: new Date("2024-05-01T22:00:00"),
+    startTime: new Date("2025-04-07T19:00:00"),
+    endTime: new Date("2025-04-07T21:15:00"),
     price: {
       [TicketType.NORMAL]: 90,
       [TicketType.STUDENT]: 45,
       [TicketType.SENIOR]: 45,
       [TicketType.CHILD]: 45
     },
-    availableSeats: generateSeats(mockTheaters[0])
+    availableSeats: generateInitialSeats(mockTheaters[0])
+  },
+  {
+    id: "showtime6",
+    movieId: "movie7",
+    theaterId: "theater2",
+    startTime: new Date("2025-04-09T15:30:00"),
+    endTime: new Date("2025-04-09T17:52:00"),
+    price: {
+      [TicketType.NORMAL]: 70,
+      [TicketType.STUDENT]: 35,
+      [TicketType.SENIOR]: 35,
+      [TicketType.CHILD]: 35
+    },
+    availableSeats: generateInitialSeats(mockTheaters[1])
+  },
+  {
+    id: "showtime7",
+    movieId: "movie5",
+    theaterId: "theater1",
+    startTime: new Date("2025-04-12T20:00:00"),
+    endTime: new Date("2025-04-12T22:32:00"),
+    price: {
+      [TicketType.NORMAL]: 85,
+      [TicketType.STUDENT]: 42,
+      [TicketType.SENIOR]: 42,
+      [TicketType.CHILD]: 42
+    },
+    availableSeats: generateInitialSeats(mockTheaters[0])
   }
 ];
 
@@ -290,8 +320,8 @@ export const mockOrders: Order[] = [
     ticketType: TicketType.NORMAL,
     totalPrice: 160,
     status: OrderStatus.PAID,
-    createdAt: new Date("2024-04-25T14:30:00"),
-    paidAt: new Date("2024-04-25T14:35:00")
+    createdAt: new Date("2025-04-05T14:30:00"),
+    paidAt: new Date("2025-04-05T14:35:00")
   },
   {
     id: "order2",
@@ -301,8 +331,8 @@ export const mockOrders: Order[] = [
     ticketType: TicketType.STUDENT,
     totalPrice: 30,
     status: OrderStatus.PAID,
-    createdAt: new Date("2024-04-26T09:15:00"),
-    paidAt: new Date("2024-04-26T09:20:00")
+    createdAt: new Date("2025-04-06T09:15:00"),
+    paidAt: new Date("2025-04-06T09:20:00")
   },
   {
     id: "order3",
@@ -312,7 +342,7 @@ export const mockOrders: Order[] = [
     ticketType: TicketType.NORMAL,
     totalPrice: 270,
     status: OrderStatus.PENDING,
-    createdAt: new Date("2024-04-28T18:45:00")
+    createdAt: new Date("2025-04-06T18:45:00")
   }
 ];
 
@@ -330,7 +360,7 @@ export const mockStaffOperations: StaffOperation[] = [
       totalPrice: 160,
       paymentMethod: "cash"
     }),
-    createdAt: new Date("2024-04-25T14:35:00")
+    createdAt: new Date("2025-04-05T14:35:00")
   },
   {
     id: "operation2",
@@ -344,7 +374,7 @@ export const mockStaffOperations: StaffOperation[] = [
       totalPrice: 30,
       paymentMethod: "wechat"
     }),
-    createdAt: new Date("2024-04-26T09:20:00")
+    createdAt: new Date("2025-04-06T09:20:00")
   },
   {
     id: "operation3",
@@ -353,10 +383,10 @@ export const mockStaffOperations: StaffOperation[] = [
     showtimeId: "showtime1",
     type: StaffOperationType.CHECK,
     details: JSON.stringify({
-      checkTime: "2024-04-25T16:45:00",
+      checkTime: "2025-04-06T10:45:00",
       status: "success"
     }),
-    createdAt: new Date("2024-04-25T16:45:00")
+    createdAt: new Date("2025-04-06T10:45:00")
   },
   {
     id: "operation4",
@@ -369,7 +399,7 @@ export const mockStaffOperations: StaffOperation[] = [
       reason: "顾客个人原因",
       refundMethod: "original"
     }),
-    createdAt: new Date("2024-04-27T11:30:00")
+    createdAt: new Date("2025-04-06T11:30:00")
   }
 ];
 
@@ -378,47 +408,47 @@ export const mockStaffSchedules: StaffSchedule[] = [
   {
     id: "schedule1",
     staffId: "staff1",
-    date: new Date("2024-05-01"),
+    date: new Date("2025-04-06"),
     shift: ShiftType.MORNING,
     position: "售票",
     notes: "工作日早班",
-    createdAt: new Date("2024-04-20T10:00:00")
+    createdAt: new Date("2025-04-01T10:00:00")
   },
   {
     id: "schedule2",
     staffId: "staff1",
-    date: new Date("2024-05-01"),
+    date: new Date("2025-04-06"),
     shift: ShiftType.AFTERNOON,
     position: "检票",
     notes: "工作日下午班",
-    createdAt: new Date("2024-04-20T10:00:00")
+    createdAt: new Date("2025-04-01T10:00:00")
   },
   {
     id: "schedule3",
     staffId: "staff1",
-    date: new Date("2024-05-02"),
+    date: new Date("2025-04-07"),
     shift: ShiftType.EVENING,
     position: "售票",
     notes: "加班",
-    createdAt: new Date("2024-04-20T10:00:00"),
-    updatedAt: new Date("2024-04-25T14:30:00")
+    createdAt: new Date("2025-04-01T10:00:00"),
+    updatedAt: new Date("2025-04-05T14:30:00")
   },
   {
     id: "schedule4",
     staffId: "staff1",
-    date: new Date("2024-05-03"),
+    date: new Date("2025-04-08"),
     shift: ShiftType.MORNING,
     position: "售票",
-    createdAt: new Date("2024-04-20T10:00:00")
+    createdAt: new Date("2025-04-01T10:00:00")
   },
   {
     id: "schedule5",
     staffId: "staff1",
-    date: new Date("2024-05-04"),
+    date: new Date("2025-04-09"),
     shift: ShiftType.AFTERNOON,
     position: "检票",
     notes: "周末班",
-    createdAt: new Date("2024-04-20T10:00:00")
+    createdAt: new Date("2025-04-01T10:00:00")
   }
 ];
 
@@ -426,16 +456,16 @@ export const mockStaffSchedules: StaffSchedule[] = [
 export const mockBanners = [
   {
     id: "banner1",
-    imageUrl: "https://img1.doubanio.com/view/photo/s_ratio_poster/public/p2895465725.webp",
-    title: "孤注一掷",
-    description: "一场意外中，建筑工人潘生意外坠楼，为了给女儿治病，他铤而走险踏上了一条危险的路。",
+    imageUrl: defaultImages.banner,
+    title: "微光之下",
+    description: "在一个永远不见天日的地下城市，由梁非凡和汤圆圆主演的科幻冒险之旅，一场关于勇气、真相与希望的故事。",
     link: "/movies/movie6"
   },
   {
     id: "banner2",
-    imageUrl: "https://img9.doubanio.com/view/photo/s_ratio_poster/public/p2895145309.webp",
-    title: "奥本海默",
-    description: "本片聚焦于美国物理学家J·罗伯特·奥本海默的故事，他被称为'原子弹之父'。",
+    imageUrl: defaultImages.banner,
+    title: "暗影追踪者",
+    description: "特别行动组组长萧风（黄飞鸿饰）在一次卧底任务中失忆，醒来后发现自己深陷一个庞大的犯罪集团内部。",
     link: "/movies/movie4"
   },
   {
@@ -453,19 +483,19 @@ export const mockAnnouncements = [
     id: "announcement1",
     title: "五一特别活动",
     content: "五一期间，购买任意电影票即可参与抽奖，有机会获得电影周边礼品。",
-    date: new Date("2024-04-25")
+    date: new Date("2025-04-05")
   },
   {
     id: "announcement2",
     title: "系统维护通知",
-    content: "系统将于2024年5月3日凌晨2:00-4:00进行维护升级，期间可能无法正常访问，请提前安排您的购票时间。",
-    date: new Date("2024-04-28")
+    content: "系统将于2025年4月13日凌晨2:00-4:00进行维护升级，期间可能无法正常访问，请提前安排您的购票时间。",
+    date: new Date("2025-04-08")
   },
   {
     id: "announcement3",
     title: "新增取票方式",
     content: "现在可以通过微信小程序直接出示电子票入场，无需再到自助机取票。",
-    date: new Date("2024-04-20")
+    date: new Date("2025-04-01")
   }
 ];
 
@@ -526,15 +556,15 @@ export const mockAdminStats = {
   totalSales: 15280,
   ticketsSold: 187,
   averageOccupancy: 68.5,
-  popularMovie: "流浪地球2",
+  popularMovie: "星际迷航：超越边界",
   popularShowtime: "周末晚间",
   dailyRevenue: [
-    { date: "04-25", revenue: 2480 },
-    { date: "04-26", revenue: 1850 },
-    { date: "04-27", revenue: 3200 },
-    { date: "04-28", revenue: 2940 },
-    { date: "04-29", revenue: 2430 },
-    { date: "04-30", revenue: 2380 }
+    { date: "04-05", revenue: 2480 },
+    { date: "04-06", revenue: 1850 },
+    { date: "04-07", revenue: 3200 },
+    { date: "04-08", revenue: 2940 },
+    { date: "04-09", revenue: 2430 },
+    { date: "04-10", revenue: 2380 }
   ],
   ticketTypeDistribution: [
     { type: "普通票", percentage: 65 },

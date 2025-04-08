@@ -12,10 +12,12 @@ import { mockUsers, mockStaffSchedules } from '@/app/lib/mockData';
 import { ShiftType } from '@/app/lib/types';
 import { userRoutes } from '@/app/lib/utils/navigation';
 import Link from 'next/link';
+import { useAppContext } from '@/app/lib/context/AppContext';
 
 export default function StaffProfilePage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [upcomingSchedules, setUpcomingSchedules] = useState<any[]>([]);
+  const { logout } = useAppContext();
   
   useEffect(() => {
     // 假设当前登录的员工ID是staff1
@@ -37,6 +39,11 @@ export default function StaffProfilePage() {
     
     setUpcomingSchedules(schedules);
   }, []);
+  
+  // 处理退出登录
+  const handleLogout = async () => {
+    await logout();
+  };
   
   // 格式化班次信息
   const formatShift = (shift: ShiftType) => {
@@ -164,16 +171,15 @@ export default function StaffProfilePage() {
                 <span className="text-sm text-slate-500">上次登录</span>
                 <span className="text-sm">{format(new Date(), 'yyyy-MM-dd HH:mm')}</span>
               </div>
-              <Link href={userRoutes.login}>
-                <Button 
-                  variant="outline" 
-                  fullWidth
-                  className="mt-3 text-red-500 border-red-300 hover:bg-red-50"
-                >
-                  <LogOut className="h-4 w-4 mr-2" />
-                  退出登录
-                </Button>
-              </Link>
+              <Button 
+                variant="outline" 
+                fullWidth
+                className="mt-3 text-red-500 border-red-300 hover:bg-red-50"
+                onClick={handleLogout}
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                退出登录
+              </Button>
             </div>
           </Card>
         </div>

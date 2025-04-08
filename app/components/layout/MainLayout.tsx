@@ -5,10 +5,11 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
   Film, Ticket, User, Home, Calendar, Settings, Layout, 
-  LogOut, BarChart, Users, DollarSign, History, Search, RefreshCcw
+  LogOut, BarChart, Users, DollarSign, History, Search, RefreshCcw, Clock, ChevronLeft, Plus, Undo, CheckSquare, Briefcase, CalendarClock
 } from 'lucide-react';
 import { useAppContext } from '@/app/lib/context/AppContext';
 import { UserRole } from '@/app/lib/types';
+import ThemeToggle from '../ThemeToggle';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -33,7 +34,7 @@ const navItems: NavItem[] = [
     label: '首页', 
     href: '/', 
     icon: Home, 
-    roles: [UserRole.ADMIN, UserRole.STAFF, UserRole.CUSTOMER] 
+    roles: [UserRole.CUSTOMER]
   },
   
   // 用户导航项
@@ -117,6 +118,12 @@ const navItems: NavItem[] = [
     label: '员工', 
     href: '/admin/staff', 
     icon: Users, 
+    roles: [UserRole.ADMIN] 
+  },
+  { 
+    label: '我的', 
+    href: '/admin/profile', 
+    icon: User, 
     roles: [UserRole.ADMIN] 
   },
   { 
@@ -241,19 +248,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({
           </div>
           
           {/* 右侧操作区 */}
-          <div className="flex items-center">
+          <div className="flex items-center space-x-2">
+            {/* 主题切换按钮 */}
+            <ThemeToggle />
+
+            {/* 其他操作按钮 */}
             {rightAction}
-            
-            {/* 登出按钮 - 仅当用户已登录时显示 */}
-            {isAuthenticated && (
-              <button
-                onClick={() => logout()}
-                className="ml-2 flex items-center justify-center h-8 w-8 rounded-full hover:bg-slate-100"
-                title="登出"
-              >
-                <LogOut className="h-5 w-5 text-slate-600" />
-              </button>
-            )}
           </div>
         </div>
       </header>

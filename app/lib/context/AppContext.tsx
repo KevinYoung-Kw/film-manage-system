@@ -25,6 +25,10 @@ interface AppContextState {
   register: (name: string, email: string, password: string, role?: UserRole) => Promise<User | null>;
   logout: () => Promise<void>;
   
+  // 主题设置
+  darkMode: boolean;
+  toggleDarkMode: () => void;
+  
   // 当前选中的项目
   selectedMovie: Movie | null;
   selectedShowtime: Showtime | null;
@@ -52,6 +56,14 @@ interface AppContextState {
   addShowtime: (showtime: Omit<Showtime, 'id'>) => Promise<Showtime | null>;
   updateShowtime: (id: string, showtime: Partial<Showtime>) => Promise<Showtime | null>;
   deleteShowtime: (id: string) => Promise<boolean>;
+  
+  // 影厅管理方法
+  addTheater: (theater: Omit<Theater, 'id'>) => Promise<Theater | null>;
+  updateTheater: (id: string, theater: Partial<Theater>) => Promise<Theater | null>;
+  deleteTheater: (id: string) => Promise<boolean>;
+  updateTheaterLayout: (id: string, rows: number, columns: number) => Promise<Theater | null>;
+  getSeatLayoutTypes: (theaterId: string) => Promise<Array<Array<string>> | null>;
+  updateSeatLayoutTypes: (theaterId: string, layout: Array<Array<string>>) => Promise<boolean>;
   
   // 工作人员方法
   staffOperations: StaffOperation[];
@@ -82,6 +94,9 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
+  
+  // 主题设置
+  const [darkMode, setDarkMode] = useState<boolean>(false);
   
   // 当前选中状态
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
@@ -222,6 +237,43 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
     loadUserOrders();
   }, [currentUser]);
 
+  // 初始化时检查本地存储中是否保存了暗黑模式首选项
+  useEffect(() => {
+    const savedDarkMode = localStorage.getItem('darkMode');
+    if (savedDarkMode !== null) {
+      const isDarkMode = savedDarkMode === 'true';
+      setDarkMode(isDarkMode);
+      if (isDarkMode) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    } else {
+      // 如果没有保存的偏好，检查系统偏好
+      const prefersDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      setDarkMode(prefersDarkMode);
+      if (prefersDarkMode) {
+        document.documentElement.classList.add('dark');
+      }
+    }
+  }, []);
+
+  // 切换黑暗模式
+  const toggleDarkMode = useCallback(() => {
+    setDarkMode(prevMode => {
+      const newMode = !prevMode;
+      localStorage.setItem('darkMode', newMode.toString());
+      
+      if (newMode) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+      
+      return newMode;
+    });
+  }, []);
+
   // 认证方法
   const login = async (email: string, password: string): Promise<User | null> => {
     try {
@@ -255,7 +307,7 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
     try {
       await AuthService.logout();
       setCurrentUser(null);
-      router.push('/');
+      router.push('/login');
     } catch (error) {
       console.error('登出失败:', error);
     }
@@ -721,6 +773,100 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
     }
   }, [currentUser, userRole]);
 
+  // 添加新影厅
+  const addTheater = useCallback(async (theater: Omit<Theater, 'id'>): Promise<Theater | null> => {
+    try {
+      const newTheater = await TheaterService.addTheater(theater);
+      if (newTheater) {
+        setTheaters(prev => [...prev, newTheater]);
+      }
+      return newTheater;
+    } catch (error) {
+      console.error('添加影厅失败:', error);
+      return null;
+    }
+  }, []);
+
+  // 更新影厅信息
+  const updateTheater = useCallback(async (id: string, theaterData: Partial<Theater>): Promise<Theater | null> => {
+    try {
+      const updatedTheater = await TheaterService.updateTheater(id, theaterData);
+      if (updatedTheater) {
+        setTheaters(prev => prev.map(theater => theater.id === id ? updatedTheater : theater));
+        
+        // 如果座位信息更新了，需要刷新场次数据
+        if (theaterData.rows !== undefined || theaterData.columns !== undefined || theaterData.totalSeats !== undefined) {
+          await refreshData();
+        }
+      }
+      return updatedTheater;
+    } catch (error) {
+      console.error('更新影厅失败:', error);
+      return null;
+    }
+  }, [refreshData]);
+
+  // 删除影厅
+  const deleteTheater = useCallback(async (id: string): Promise<boolean> => {
+    try {
+      const success = await TheaterService.deleteTheater(id);
+      if (success) {
+        setTheaters(prev => prev.filter(theater => theater.id !== id));
+        
+        // 删除关联的场次
+        const filteredShowtimes = showtimes.filter(showtime => showtime.theaterId !== id);
+        setShowtimes(filteredShowtimes);
+        setTodayShowtimes(prev => prev.filter(showtime => showtime.theaterId !== id));
+      }
+      return success;
+    } catch (error) {
+      console.error('删除影厅失败:', error);
+      return false;
+    }
+  }, [showtimes]);
+
+  // 更新影厅座位布局
+  const updateTheaterLayout = useCallback(async (id: string, rows: number, columns: number): Promise<Theater | null> => {
+    try {
+      const updatedTheater = await TheaterService.updateTheaterLayout(id, rows, columns);
+      if (updatedTheater) {
+        setTheaters(prev => prev.map(theater => theater.id === id ? updatedTheater : theater));
+        
+        // 刷新场次数据以获取更新后的座位布局
+        await refreshData();
+      }
+      return updatedTheater;
+    } catch (error) {
+      console.error('更新影厅布局失败:', error);
+      return null;
+    }
+  }, [refreshData]);
+
+  // 获取影厅座位布局类型
+  const getSeatLayoutTypes = useCallback(async (theaterId: string): Promise<Array<Array<string>> | null> => {
+    try {
+      return await TheaterService.getSeatLayoutTypes(theaterId);
+    } catch (error) {
+      console.error('获取座位布局类型失败:', error);
+      return null;
+    }
+  }, []);
+
+  // 更新影厅座位布局类型
+  const updateSeatLayoutTypes = useCallback(async (theaterId: string, layout: Array<Array<string>>): Promise<boolean> => {
+    try {
+      const success = await TheaterService.updateSeatLayoutTypes(theaterId, layout);
+      if (success) {
+        // 刷新场次数据以获取更新后的座位类型
+        await refreshData();
+      }
+      return success;
+    } catch (error) {
+      console.error('更新座位布局类型失败:', error);
+      return false;
+    }
+  }, [refreshData]);
+
   // 构建上下文值
   const contextValue: AppContextState = {
     // 数据状态
@@ -739,6 +885,10 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
     login,
     register,
     logout,
+    
+    // 主题设置
+    darkMode,
+    toggleDarkMode,
     
     // 选中状态
     selectedMovie,
@@ -767,6 +917,14 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
     addShowtime,
     updateShowtime,
     deleteShowtime,
+    
+    // 影厅管理方法
+    addTheater,
+    updateTheater,
+    deleteTheater,
+    updateTheaterLayout,
+    getSeatLayoutTypes,
+    updateSeatLayoutTypes,
     
     // 工作人员方法
     staffOperations,
