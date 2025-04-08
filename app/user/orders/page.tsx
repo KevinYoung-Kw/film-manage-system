@@ -9,18 +9,24 @@ import MobileLayout from '@/app/components/layout/MobileLayout';
 import { Card } from '@/app/components/ui/Card';
 import TabGroup from '@/app/components/ui/TabGroup';
 import Button from '@/app/components/ui/Button';
-import { mockOrders, mockMovies, mockShowtimes, mockTheaters, defaultImages } from '@/app/lib/mockData';
+import { mockMovies, mockShowtimes, mockTheaters, defaultImages } from '@/app/lib/mockData';
 import { Order, OrderStatus } from '@/app/lib/types';
+import { useAppContext } from '@/app/lib/context/AppContext';
 
 export default function OrdersPage() {
+  const { orders: contextOrders, refreshData, cancelOrder } = useAppContext();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   
-  // 模拟从本地存储获取新创建的订单
+  // 使用AppContext中的订单数据
   useEffect(() => {
-    // 合并mock数据和本地存储的数据
-    const combinedOrders = [...mockOrders];
-    setOrders(combinedOrders);
-  }, []);
+    setOrders(contextOrders);
+  }, [contextOrders]);
+  
+  // 页面加载时刷新数据
+  useEffect(() => {
+    refreshData();
+  }, [refreshData]);
   
   // 按状态过滤订单
   const pendingOrders = orders.filter(order => order.status === OrderStatus.PENDING);
@@ -75,6 +81,21 @@ export default function OrdersPage() {
         );
       default:
         return null;
+    }
+  };
+  
+  // 处理取消订单
+  const handleCancelOrder = async (orderId: string) => {
+    if (window.confirm('确定要取消该订单吗？取消后无法恢复。')) {
+      setIsLoading(true);
+      try {
+        await cancelOrder(orderId);
+        refreshData(); // 刷新数据
+      } catch (error) {
+        console.error('取消订单失败:', error);
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
   
@@ -134,7 +155,12 @@ export default function OrdersPage() {
                 )}
                 
                 {order.status === OrderStatus.PENDING && (
-                  <Button size="sm" variant="ghost">
+                  <Button 
+                    size="sm" 
+                    variant="ghost"
+                    onClick={() => handleCancelOrder(order.id)}
+                    disabled={isLoading}
+                  >
                     <X className="h-4 w-4 mr-1" />
                     取消订单
                   </Button>

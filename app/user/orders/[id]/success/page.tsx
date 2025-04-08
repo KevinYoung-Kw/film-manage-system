@@ -9,23 +9,32 @@ import MobileLayout from '@/app/components/layout/MobileLayout';
 import { Card } from '@/app/components/ui/Card';
 import Button from '@/app/components/ui/Button';
 import { CheckCircle, Clock, Calendar, MapPin } from 'lucide-react';
-import { defaultImages } from '@/app/lib/mockData';
-import { MovieService, TheaterService } from '@/app/lib/services/dataService';
+import { defaultImages, mockShowtimes, mockMovies, mockTheaters } from '@/app/lib/mockData';
 import { userRoutes } from '@/app/lib/utils/navigation';
+import { useAppContext } from '@/app/lib/context/AppContext';
 
 export default function OrderSuccessPage() {
   const router = useRouter();
   const params = useParams();
   const orderId = typeof params.id === 'string' ? params.id : Array.isArray(params.id) ? params.id[0] : '';
   
+  const { orders, refreshData } = useAppContext();
+  const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState<any>(null);
   const [movie, setMovie] = useState<any>(null);
+  const [showtime, setShowtime] = useState<any>(null);
   const [theater, setTheater] = useState<any>(null);
   
+  // 页面加载时刷新数据
   useEffect(() => {
-    // 从localStorage获取订单信息
-    const orders = JSON.parse(localStorage.getItem('orders') || '[]');
-    const currentOrder = orders.find((o: any) => o.id === orderId);
+    refreshData();
+  }, [refreshData]);
+  
+  useEffect(() => {
+    if (!orderId || orders.length === 0) return;
+    
+    // 从AppContext中获取订单信息
+    const currentOrder = orders.find(o => o.id === orderId);
     
     if (!currentOrder) {
       router.push(userRoutes.orders);
@@ -34,33 +43,26 @@ export default function OrderSuccessPage() {
     
     setOrder(currentOrder);
     
-    // 获取电影和影院信息
-    async function loadData() {
-      if (currentOrder.movieTitle) {
-        // 已有电影标题，直接使用
-        setMovie({ title: currentOrder.movieTitle });
-      } else if (currentOrder.showtimeId) {
-        // 通过场次ID查找电影
-        const allMovies = await MovieService.getAllMovies();
-        // 查找电影逻辑 (简化版)
-        setMovie(allMovies[0]);
-      }
-      
-      if (currentOrder.theaterName) {
-        // 已有影院名称，直接使用
-        setTheater({ name: currentOrder.theaterName });
-      } else {
-        // 获取所有影院信息
-        const theaters = await TheaterService.getAllTheaters();
-        // 此处简化逻辑，实际应根据场次信息获取影院
-        setTheater(theaters[0]);
-      }
+    // 获取场次信息
+    const showtimeData = mockShowtimes.find(s => s.id === currentOrder.showtimeId);
+    if (!showtimeData) {
+      router.push(userRoutes.orders);
+      return;
     }
     
-    loadData();
-  }, [orderId, router]);
+    setShowtime(showtimeData);
+    
+    // 获取电影和影院信息
+    const movieData = mockMovies.find(m => m.id === showtimeData.movieId);
+    if (movieData) setMovie(movieData);
+    
+    const theaterData = mockTheaters.find(t => t.id === showtimeData.theaterId);
+    if (theaterData) setTheater(theaterData);
+    
+    setLoading(false);
+  }, [orderId, orders, router]);
   
-  if (!order || !movie) {
+  if (loading || !order || !movie) {
     return (
       <MobileLayout title="订单确认" showBackButton>
         <div className="flex justify-center items-center h-64">
@@ -71,7 +73,7 @@ export default function OrderSuccessPage() {
   }
   
   // 格式化时间
-  const formattedTime = order.startTime ? format(new Date(order.startTime), 'yyyy-MM-dd HH:mm') : '';
+  const formattedTime = showtime ? format(new Date(showtime.startTime), 'yyyy-MM-dd HH:mm') : '';
   
   return (
     <MobileLayout title="订单确认" showBackButton>
@@ -89,7 +91,7 @@ export default function OrderSuccessPage() {
             </div>
             <div className="flex justify-between items-center">
               <span className="text-slate-500">支付时间</span>
-              <span>{order.payTime ? format(new Date(order.payTime), 'yyyy-MM-dd HH:mm') : '-'}</span>
+              <span>{order.paidAt ? format(new Date(order.paidAt), 'yyyy-MM-dd HH:mm') : '-'}</span>
             </div>
           </div>
         </Card>
@@ -121,6 +123,27 @@ export default function OrderSuccessPage() {
                 </span>
               </div>
             </div>
+          </div>
+        </Card>
+        
+        {/* 座位信息 */}
+        <Card className="p-4">
+          <h3 className="font-semibold mb-2">座位信息</h3>
+          <div className="flex flex-wrap gap-2">
+            {order.seats.map((seatId: string) => {
+              const seat = showtime?.availableSeats.find((s: any) => s.id === seatId);
+              if (!seat) return null;
+              
+              // 转换为字母行号 (A, B, C...)
+              const rowLabel = String.fromCharCode(64 + seat.row);
+              const seatLabel = `${rowLabel}${seat.column}`;
+              
+              return (
+                <span key={seatId} className="bg-gray-100 px-2 py-1 rounded text-sm">
+                  {seatLabel}
+                </span>
+              );
+            })}
           </div>
         </Card>
         

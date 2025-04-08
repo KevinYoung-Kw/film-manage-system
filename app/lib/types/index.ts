@@ -62,7 +62,6 @@ export enum TicketType {
   STUDENT = 'student',
   SENIOR = 'senior',
   CHILD = 'child',
-  VIP = 'vip'
 }
 
 // 电影场次

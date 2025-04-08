@@ -9,15 +9,23 @@ import MobileLayout from '@/app/components/layout/MobileLayout';
 import { Card } from '@/app/components/ui/Card';
 import Button from '@/app/components/ui/Button';
 import { CreditCard, ChevronsRight, AlertCircle, Check, X } from 'lucide-react';
-import { mockShowtimes, mockMovies, mockTheaters, mockOrders, defaultImages } from '@/app/lib/mockData';
+import { mockShowtimes, mockMovies, mockTheaters, defaultImages } from '@/app/lib/mockData';
 import { OrderStatus, TicketType } from '@/app/lib/types';
 import { userRoutes } from '@/app/lib/utils/navigation';
 import { PaymentService, PaymentMethod, PaymentStatus } from '@/app/lib/services/paymentService';
+import { useAppContext } from '@/app/lib/context/AppContext';
+import { Button as NextUIButton } from '@nextui-org/react';
+import { useToast } from '@/app/components/ui/use-toast';
+import { cn } from '@/app/lib/utils';
+import { OrderService } from '@/app/lib/services/dataService';
+import { toast } from '@/app/components/ui/use-toast';
+import classNames from 'classnames';
 
 // 创建一个使用 useSearchParams 的组件，这样可以在 Suspense 边界中使用它
 function PaymentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { createOrder, refreshData, orders, selectShowtime, selectedShowtime, selectSeat, clearSelectedSeats, currentUser } = useAppContext();
   const [isLoading, setIsLoading] = useState(false);
   const [countdown, setCountdown] = useState(15);
   const [movie, setMovie] = useState<any>(null);
@@ -29,43 +37,76 @@ function PaymentContent() {
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>(PaymentStatus.PENDING);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const [orderId, setOrderId] = useState<string | null>(null);
   
   const showtimeId = searchParams.get('showtimeId');
-  const seats = searchParams.get('seats')?.split(',') || [];
+  const seatsParam = searchParams.get('seats');
+  const seats = seatsParam ? seatsParam.split(',') : [];
   
   // 初始化数据，只运行一次
   useEffect(() => {
     if (initialized) return;
     
     // 检查必要参数
-    if (!showtimeId || seats.length === 0) {
+    if (!showtimeId) {
       router.push(userRoutes.movieList);
       return;
     }
     
-    // 获取场次信息
-    const targetShowtime = mockShowtimes.find(s => s.id === showtimeId);
-    if (targetShowtime) {
-      setShowtime(targetShowtime);
-      setSelectedSeats(seats);
-      
-      // 获取电影信息
-      const relatedMovie = mockMovies.find(m => m.id === targetShowtime.movieId);
-      if (relatedMovie) setMovie(relatedMovie);
-      
-      // 获取影厅信息
-      const relatedTheater = mockTheaters.find(t => t.id === targetShowtime.theaterId);
-      if (relatedTheater) setTheater(relatedTheater);
-      
-      // 计算总价
-      const basePricePerSeat = targetShowtime.price[TicketType.NORMAL];
-      setTotalPrice(basePricePerSeat * seats.length);
-      
-      setInitialized(true);
-    } else {
-      router.push(userRoutes.movieList);
-    }
-  }, [showtimeId, seats, router, initialized]);
+    const loadData = async () => {
+      try {
+        // 获取场次信息
+        const targetShowtime = mockShowtimes.find(s => s.id === showtimeId);
+        if (!targetShowtime) {
+          router.push(userRoutes.movieList);
+          return;
+        }
+        
+        setShowtime(targetShowtime);
+        
+        // 如果是从订单页面过来的（没有seats参数），则从订单中获取座位信息
+        let seatArray = seats;
+        if (seats.length === 0) {
+          // 查找对应场次的待支付订单
+          const pendingOrder = orders.find(
+            o => o.showtimeId === showtimeId && o.status === OrderStatus.PENDING
+          );
+          
+          if (pendingOrder) {
+            seatArray = pendingOrder.seats;
+            setSelectedSeats(pendingOrder.seats);
+          } else {
+            router.push(userRoutes.movieList);
+            return;
+          }
+        } else {
+          setSelectedSeats(seats);
+        }
+        
+        // 获取电影信息
+        const relatedMovie = mockMovies.find(m => m.id === targetShowtime.movieId);
+        if (relatedMovie) setMovie(relatedMovie);
+        
+        // 获取影厅信息
+        const relatedTheater = mockTheaters.find(t => t.id === targetShowtime.theaterId);
+        if (relatedTheater) setTheater(relatedTheater);
+        
+        // 计算总价
+        const basePricePerSeat = targetShowtime.price[TicketType.NORMAL];
+        setTotalPrice(basePricePerSeat * seatArray.length);
+        
+        // 设置 selectedShowtime 以便在 createOrder 时使用
+        selectShowtime(targetShowtime);
+        
+        setInitialized(true);
+      } catch (error) {
+        console.error('加载数据失败:', error);
+        router.push(userRoutes.movieList);
+      }
+    };
+    
+    loadData();
+  }, [showtimeId, seats, router, initialized, selectShowtime, orders]);
   
   // 单独的倒计时效果
   useEffect(() => {
@@ -92,78 +133,93 @@ function PaymentContent() {
   // 根据支付状态进行路由跳转
   useEffect(() => {
     if (paymentStatus === PaymentStatus.SUCCESS) {
-      // 获取订单ID
-      const pendingOrderJson = sessionStorage.getItem('pendingOrder');
-      if (pendingOrderJson) {
-        const pendingOrder = JSON.parse(pendingOrderJson);
-        // 短暂延迟后跳转到成功页面
-        const timer = setTimeout(() => {
-          router.push(userRoutes.orderSuccess(pendingOrder.id));
-        }, 1500);
-        return () => clearTimeout(timer);
+      // 成功后刷新数据
+      refreshData();
+      
+      // 短暂延迟后跳转到成功页面
+      const timer = setTimeout(() => {
+        router.push(userRoutes.orderSuccess(orderId || ''));
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [paymentStatus, router, orderId, refreshData]);
+  
+  // 增加新的useEffect来监听selectedShowtime的变化
+  useEffect(() => {
+    if (selectedShowtime && selectedSeats.length > 0) {
+      // 当selectedShowtime更新后，确保所有座位被正确设置
+      console.log("selectedShowtime已设置，更新座位选择");
+      // 先清除所有选中的座位
+      clearSelectedSeats();
+      
+      // 添加当前页面中选择的座位
+      for (const seatId of selectedSeats) {
+        selectSeat(seatId);
       }
     }
-  }, [paymentStatus, router]);
+  }, [selectedShowtime, selectedSeats, clearSelectedSeats, selectSeat]);
   
-  // 支付处理函数
-  const handlePayment = async () => {
-    if (isLoading) return;
+  // 自定义购票流程，不依赖AppContext的createOrder
+  const handlePurchase = async () => {
+    if (isLoading || !showtime || !currentUser) return;
     
     setIsLoading(true);
     setPaymentStatus(PaymentStatus.PROCESSING);
     
     try {
-      // 生成订单ID
-      const orderId = `ORD${Date.now().toString().slice(-6)}`;
-      
-      // 创建订单对象
-      const order = {
-        id: orderId,
-        userId: "current-user", // 实际应用中应该从登录状态获取
-        showtimeId: showtimeId!,
+      console.log("开始自定义购票流程:", {
+        showtimeId: showtime.id,
         seats: selectedSeats,
-        ticketType: TicketType.NORMAL,
-        totalPrice,
-        status: OrderStatus.PENDING,
-        createdAt: new Date().toISOString(),
-        movieTitle: movie?.title,
-        theaterName: theater?.name,
-        startTime: showtime?.startTime
-      };
-      
-      // 保存待支付订单到sessionStorage
-      sessionStorage.setItem('pendingOrder', JSON.stringify(order));
-      
-      // 获取或初始化订单列表
-      let orders = JSON.parse(localStorage.getItem('orders') || '[]');
-      orders.unshift(order);
-      localStorage.setItem('orders', JSON.stringify(orders));
-      
-      // 调用支付服务
-      const paymentResult = await PaymentService.initiatePayment({
-        orderId,
-        amount: totalPrice,
-        method: paymentMethod,
-        userId: "current-user",
-        description: `购买电影票：${movie?.title}`,
-        metadata: {
-          showtimeId,
-          seats: selectedSeats,
-          movieTitle: movie?.title
-        }
+        userId: currentUser.id
       });
       
-      // 保存支付结果
-      PaymentService.savePaymentResult(paymentResult);
+      // 直接使用OrderService创建订单
+      // 为此我们需要导入OrderService
+      const { OrderService } = await import('@/app/lib/services/dataService');
       
-      // 根据支付结果设置状态
+      // 准备订单数据
+      const orderData = {
+        userId: currentUser.id,
+        showtimeId: showtime.id,
+        seats: selectedSeats,
+        ticketType: TicketType.NORMAL,
+        totalPrice: selectedSeats.length * showtime.price[TicketType.NORMAL],
+        status: OrderStatus.PENDING
+      };
+      
+      console.log("准备创建订单:", orderData);
+      
+      // 创建订单
+      const newOrder = await OrderService.createOrder(orderData);
+      console.log("订单创建成功:", newOrder);
+      
+      // 设置订单ID
+      setOrderId(newOrder.id);
+      
+      // 模拟支付结果
+      const paymentResult = {
+        status: PaymentStatus.SUCCESS,
+        message: '支付成功',
+        transactionId: 'txn_' + Date.now(),
+        timestamp: new Date().toISOString()
+      };
+      
+      // 设置支付状态
       setPaymentStatus(paymentResult.status);
       
-      if (paymentResult.status === PaymentStatus.FAILED) {
-        setPaymentError(paymentResult.message || '支付处理失败，请稍后重试');
+      // 使用OrderService更新订单状态为已支付
+      if (paymentResult.status === PaymentStatus.SUCCESS) {
+        await OrderService.updateOrderStatus(newOrder.id, OrderStatus.PAID);
+        console.log("订单状态已更新为已支付");
+        
+        // 刷新上下文中的数据
+        await refreshData();
       }
+      
+      console.log("支付流程完成");
+      
     } catch (error) {
-      console.error('支付处理错误:', error);
+      console.error("支付流程错误:", error);
       setPaymentStatus(PaymentStatus.FAILED);
       setPaymentError('支付处理过程中发生错误');
     } finally {
@@ -388,7 +444,7 @@ function PaymentContent() {
           <Button 
             variant="primary" 
             className="w-full py-3 text-base"
-            onClick={handlePayment}
+            onClick={handlePurchase}
             disabled={isLoading}
           >
             {isLoading ? '处理中...' : `确认支付 ¥${totalPrice}`}
@@ -424,4 +480,16 @@ export default function PaymentPage() {
       <PaymentContent />
     </Suspense>
   );
-} 
+}
+
+// 添加刷新数据的函数
+const refreshData = async (context: any) => {
+  try {
+    console.log("正在刷新数据...");
+    // 强制刷新上下文数据
+    await context.refreshData();
+    // 如果需要，可以在这里添加其他刷新逻辑
+  } catch (error) {
+    console.error("刷新数据失败:", error);
+  }
+}; 

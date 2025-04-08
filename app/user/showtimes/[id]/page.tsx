@@ -5,24 +5,32 @@ import { useParams } from 'next/navigation';
 import { MovieService, ShowtimeService, TheaterService } from '@/app/lib/services/dataService';
 import { Movie, Showtime, Theater } from '@/app/lib/types';
 import ShowtimeDetailClient from './ShowtimeDetailClient';
+import { useAppContext } from '@/app/lib/context/AppContext';
 
 export default function ShowtimePage() {
   const params = useParams();
   const showtimeId = typeof params.id === 'string' ? params.id : Array.isArray(params.id) ? params.id[0] : '';
   
+  const { showtimes, movies, theaters, refreshData } = useAppContext();
   const [loading, setLoading] = useState(true);
   const [showtime, setShowtime] = useState<Showtime | null>(null);
   const [movie, setMovie] = useState<Movie | null>(null);
   const [theater, setTheater] = useState<Theater | null>(null);
   const [error, setError] = useState<string | null>(null);
   
+  // 页面加载时刷新数据
+  useEffect(() => {
+    refreshData();
+  }, [refreshData]);
+  
   useEffect(() => {
     async function fetchData() {
       try {
         setLoading(true);
         
-        // 获取场次信息
-        const showtimeData = await ShowtimeService.getShowtimeById(showtimeId);
+        // 优先从AppContext中获取数据
+        const showtimeData = showtimes.find(s => s.id === showtimeId) || 
+                             await ShowtimeService.getShowtimeById(showtimeId);
         
         if (!showtimeData) {
           setError('场次不存在');
@@ -32,11 +40,12 @@ export default function ShowtimePage() {
         
         setShowtime(showtimeData);
         
-        // 获取电影和影厅信息
-        const [movieData, theaterData] = await Promise.all([
-          MovieService.getMovieById(showtimeData.movieId),
-          TheaterService.getTheaterById(showtimeData.theaterId)
-        ]);
+        // 获取电影和影厅信息，优先从缓存中获取
+        const movieData = movies.find(m => m.id === showtimeData.movieId) ||
+                          await MovieService.getMovieById(showtimeData.movieId);
+                          
+        const theaterData = theaters.find(t => t.id === showtimeData.theaterId) ||
+                            await TheaterService.getTheaterById(showtimeData.theaterId);
         
         if (!movieData || !theaterData) {
           setError('电影或影厅数据不存在');
@@ -57,7 +66,7 @@ export default function ShowtimePage() {
     if (showtimeId) {
       fetchData();
     }
-  }, [showtimeId]);
+  }, [showtimeId, showtimes, movies, theaters]);
   
   if (loading) {
     return (
