@@ -104,6 +104,17 @@ npm run build
 npm start
 ```
 
+## 部署到 Vercel
+
+本项目可以轻松部署到 Vercel 平台，方法如下：
+
+1. 将项目推送到 GitHub 仓库
+2. 在 [Vercel](https://vercel.com/) 中导入 GitHub 仓库
+3. 配置必要的环境变量（参考 `.env.local.example`）
+4. 完成自动部署
+
+更详细的部署说明请参考项目根目录中的 `deployment-guide.md` 文件。
+
 ## 演示账户
 
 系统预设了以下测试账户（密码统一为：123456）：

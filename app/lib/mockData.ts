@@ -157,6 +157,34 @@ export const mockMovies: Movie[] = [
     genre: ["历史", "冒险", "悬疑"],
     rating: 8.2,
     status: MovieStatus.SHOWING
+  },
+  {
+    id: "movie8",
+    title: "芷园传奇",
+    poster: defaultImages.moviePoster,
+    webpPoster: '/images/movies/movie8.webp',
+    duration: 120,
+    director: "陈饭王",
+    actors: ["李大厨", "王师傅", "张创新", "周味道"],
+    description: "讲述华南农业大学芷园饭堂如何凭借独特的烹饪技艺和创新菜品，在全校厨艺大比拼中次次夺得第一的故事。从普通食堂到美食传奇的蜕变过程中，芷园团队克服重重困难，用美食温暖人心，最终成为校园文化的重要标志。",
+    releaseDate: new Date("2025-04-20"),
+    genre: ["美食", "励志", "纪实"],
+    rating: 9.3,
+    status: MovieStatus.COMING_SOON
+  },
+  {
+    id: "movie9",
+    title: "华农爱情故事",
+    poster: defaultImages.moviePoster,
+    webpPoster: '/images/movies/movie9.webp',
+    duration: 115,
+    director: "张情感",
+    actors: ["王法学", "李计算", "赵校园", "钱青春"],
+    description: "来自法学院的大四学生小王，在毕业前夕爱上了计算机专业的才女小李。为了追求心仪的姑娘，他每天横跨紫荆桥，从启林区奔向泰山区，用一系列浪漫而又略显笨拙的方式表达爱意。这是一个关于跨越专业鸿沟、勇敢追爱的青春故事。",
+    releaseDate: new Date("2025-05-01"),
+    genre: ["爱情", "青春", "校园"],
+    rating: 8.9,
+    status: MovieStatus.COMING_SOON
   }
 ];
 
@@ -285,6 +313,62 @@ export const mockShowtimes: Showtime[] = [
       [TicketType.STUDENT]: 42,
       [TicketType.SENIOR]: 42,
       [TicketType.CHILD]: 42
+    },
+    availableSeats: generateInitialSeats(mockTheaters[0])
+  },
+  {
+    id: "showtime8",
+    movieId: "movie8",
+    theaterId: "theater2",
+    startTime: new Date("2025-04-20T14:30:00"),
+    endTime: new Date("2025-04-20T16:30:00"),
+    price: {
+      [TicketType.NORMAL]: 75,
+      [TicketType.STUDENT]: 38,
+      [TicketType.SENIOR]: 38,
+      [TicketType.CHILD]: 38
+    },
+    availableSeats: generateInitialSeats(mockTheaters[1])
+  },
+  {
+    id: "showtime9",
+    movieId: "movie8",
+    theaterId: "theater1",
+    startTime: new Date("2025-04-20T19:00:00"),
+    endTime: new Date("2025-04-20T21:00:00"),
+    price: {
+      [TicketType.NORMAL]: 85,
+      [TicketType.STUDENT]: 42,
+      [TicketType.SENIOR]: 42,
+      [TicketType.CHILD]: 42
+    },
+    availableSeats: generateInitialSeats(mockTheaters[0])
+  },
+  {
+    id: "showtime10",
+    movieId: "movie9",
+    theaterId: "theater3",
+    startTime: new Date("2025-05-01T15:00:00"),
+    endTime: new Date("2025-05-01T16:55:00"),
+    price: {
+      [TicketType.NORMAL]: 70,
+      [TicketType.STUDENT]: 35,
+      [TicketType.SENIOR]: 35,
+      [TicketType.CHILD]: 35
+    },
+    availableSeats: generateInitialSeats(mockTheaters[2])
+  },
+  {
+    id: "showtime11",
+    movieId: "movie9",
+    theaterId: "theater1",
+    startTime: new Date("2025-05-01T20:00:00"),
+    endTime: new Date("2025-05-01T21:55:00"),
+    price: {
+      [TicketType.NORMAL]: 80,
+      [TicketType.STUDENT]: 40,
+      [TicketType.SENIOR]: 40,
+      [TicketType.CHILD]: 40
     },
     availableSeats: generateInitialSeats(mockTheaters[0])
   }
@@ -489,6 +573,14 @@ export const mockBanners = [
     title: "会员日特惠",
     description: "每周二会员日，全场电影票8折优惠",
     link: "/promotions/members-day"
+  },
+  {
+    id: "banner4",
+    imageUrl: defaultImages.banner,
+    webpImageUrl: '/images/banners/banner4.webp',
+    title: "芷园传奇",
+    description: "华农校园美食传奇，芷园饭堂的厨艺大师们如何在厨艺大比拼中脱颖而出，带你领略校园美食文化的魅力。",
+    link: "/movies/movie8"
   }
 ];
 
@@ -535,6 +627,11 @@ export const mockFAQs = [
     id: "faq4",
     question: "儿童/老人票如何购买？",
     answer: "儿童票适用于身高1.3米以下的儿童，老人票适用于65岁以上老人，购票时选择对应票种，入场时可能需要提供相关证件。"
+  },
+  {
+    id: "faq5",
+    question: "华农校园主题电影有哪些特殊活动？",
+    answer: "华农校园主题电影《芷园传奇》和《华农爱情故事》将在首映当天邀请华农在校师生参与互动环节，凭学生证或教师证可享受额外8折优惠，还有机会与电影主创见面。"
   }
 ];
 
