@@ -114,7 +114,11 @@ export default function MoviesManagementPage() {
           <div key={movie.id} className="bg-white rounded-lg shadow overflow-hidden">
             <div className="flex">
               <div className="w-1/3">
-                <img src={movie.poster} alt={movie.title} className="h-full w-full object-cover" />
+                <img 
+                  src={movie.webpPoster || movie.poster} 
+                  alt={movie.title} 
+                  className="h-full w-full object-cover" 
+                />
               </div>
               <div className="w-2/3 p-3">
                 <div className="flex justify-between items-start">
@@ -178,6 +182,11 @@ export default function MoviesManagementPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">海报URL</label>
                   <input type="text" className="w-full p-2 border rounded-md" placeholder="输入海报图片URL" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">WebP格式海报URL</label>
+                  <input type="text" className="w-full p-2 border rounded-md" placeholder="输入WebP格式海报图片URL" />
+                  <p className="text-xs text-gray-500 mt-1">WebP格式图片将优先显示，提供更好的性能和加载速度</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">导演</label>
@@ -271,6 +280,16 @@ export default function MoviesManagementPage() {
                     value={editedMovie.poster}
                     onChange={(e) => handleInputChange('poster', e.target.value)}
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">WebP格式海报URL</label>
+                  <input 
+                    type="text" 
+                    className="w-full p-2 border rounded-md" 
+                    value={editedMovie.webpPoster || ''}
+                    onChange={(e) => handleInputChange('webpPoster', e.target.value)}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">WebP格式图片将优先显示，提供更好的性能和加载速度</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">导演</label>

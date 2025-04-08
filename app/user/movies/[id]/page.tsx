@@ -94,7 +94,7 @@ export default function UserMovieDetail() {
       {/* 电影封面和基本信息 */}
       <div className="relative w-full h-60 overflow-hidden shadow-lg">
         <Image
-          src={movie.poster || defaultImages.moviePoster}
+          src={movie.webpPoster || movie.poster || defaultImages.webpMoviePoster || defaultImages.moviePoster}
           alt={movie.title}
           fill
           className="object-cover"

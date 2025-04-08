@@ -3,10 +3,15 @@ import { User, UserRole, Movie, Theater, Showtime, Order, OrderStatus, TicketTyp
 // 默认图片资源
 export const defaultImages = {
   banner: '/images/default-banner.jpg',
+  webpBanner: '/images/default-banner.webp',
   moviePoster: '/images/default-poster.jpg',
+  webpMoviePoster: '/images/default-poster.webp',
   avatar: '/images/default-avatar.jpg',
+  webpAvatar: '/images/default-avatar.webp',
   theater: '/images/default-theater.jpg',
-  logo: '/images/logo.png'
+  webpTheater: '/images/default-theater.webp',
+  logo: '/images/logo.png',
+  webpLogo: '/images/logo.webp'
 };
 
 /**
@@ -66,12 +71,14 @@ export const mockMovies: Movie[] = [
     rating: 8.7,
     releaseDate: new Date("2025-04-06"),
     poster: defaultImages.moviePoster,
+    webpPoster: '/images/movies/movie1.webp',
     status: MovieStatus.SHOWING
   },
   {
     id: "movie2",
     title: "幻象追踪",
     poster: defaultImages.moviePoster,
+    webpPoster: '/images/movies/movie2.webp',
     duration: 118,
     director: "陈不看",
     actors: ["高启强", "高启盛", "安静", "海绵宝"],
@@ -85,6 +92,7 @@ export const mockMovies: Movie[] = [
     id: "movie3",
     title: "春日告白",
     poster: defaultImages.moviePoster,
+    webpPoster: '/images/movies/movie3.webp',
     duration: 112,
     director: "赵糖糖",
     actors: ["何止一点", "陈伟笑", "刘会唱", "李芒果"],
@@ -98,6 +106,7 @@ export const mockMovies: Movie[] = [
     id: "movie4",
     title: "暗影追踪者",
     poster: defaultImages.moviePoster,
+    webpPoster: '/images/movies/movie4.webp',
     duration: 135,
     director: "吴梗王",
     actors: ["黄飞鸿", "倪好笑", "张艺猛", "周一围"],
@@ -111,6 +120,7 @@ export const mockMovies: Movie[] = [
     id: "movie5",
     title: "城市之光",
     poster: defaultImages.moviePoster,
+    webpPoster: '/images/movies/movie5.webp',
     duration: 152,
     director: "冯导演",
     actors: ["胡一刀", "孙悟饭", "邓不群", "宋江湖"],
@@ -123,7 +133,8 @@ export const mockMovies: Movie[] = [
   {
     id: "movie6",
     title: "微光之下",
-    poster: defaultImages.moviePoster, 
+    poster: defaultImages.moviePoster,
+    webpPoster: '/images/movies/movie6.webp',
     duration: 128,
     director: "王不二",
     actors: ["梁非凡", "汤圆圆", "井底蛙", "猪猪侠"],
@@ -137,6 +148,7 @@ export const mockMovies: Movie[] = [
     id: "movie7",
     title: "古城疑云",
     poster: defaultImages.moviePoster,
+    webpPoster: '/images/movies/movie7.webp',
     duration: 142,
     director: "陈可口",
     actors: ["张麻花", "章小蕙", "黄小厨", "周星星"],
@@ -457,6 +469,7 @@ export const mockBanners = [
   {
     id: "banner1",
     imageUrl: defaultImages.banner,
+    webpImageUrl: '/images/banners/banner1.webp',
     title: "微光之下",
     description: "在一个永远不见天日的地下城市，由梁非凡和汤圆圆主演的科幻冒险之旅，一场关于勇气、真相与希望的故事。",
     link: "/movies/movie6"
@@ -464,6 +477,7 @@ export const mockBanners = [
   {
     id: "banner2",
     imageUrl: defaultImages.banner,
+    webpImageUrl: '/images/banners/banner2.webp',
     title: "暗影追踪者",
     description: "特别行动组组长萧风（黄飞鸿饰）在一次卧底任务中失忆，醒来后发现自己深陷一个庞大的犯罪集团内部。",
     link: "/movies/movie4"
@@ -471,6 +485,7 @@ export const mockBanners = [
   {
     id: "banner3",
     imageUrl: defaultImages.banner,
+    webpImageUrl: '/images/banners/banner3.webp',
     title: "会员日特惠",
     description: "每周二会员日，全场电影票8折优惠",
     link: "/promotions/members-day"

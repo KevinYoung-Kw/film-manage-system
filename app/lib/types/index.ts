@@ -26,6 +26,7 @@ export interface Movie {
   title: string;
   originalTitle?: string;  // 原始标题（外语电影）
   poster: string;
+  webpPoster?: string;     // webp格式的电影封面
   duration: number; // 分钟
   director: string;
   actors: string[];

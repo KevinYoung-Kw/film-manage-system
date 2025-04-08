@@ -5,11 +5,23 @@ import { mockMovies, mockTheaters, mockShowtimes, mockOrders, mockUsers, mockSta
  * 处理图片URL，避免跨域问题
  * 将豆瓣图片URL替换为本地默认图片
  */
-export const processImageUrl = (url: string): string => {
+export const processImageUrl = (url: string, useWebp: boolean = false): string => {
   if (!url || url.includes('douban')) {
-    return defaultImages.moviePoster;
+    return useWebp ? defaultImages.webpMoviePoster : defaultImages.moviePoster;
   }
   return url;
+};
+
+/**
+ * 处理Banner图片URL
+ * 优先返回webp格式的图片
+ */
+export const processBannerUrl = (banner: any): string => {
+  if (!banner) {
+    return defaultImages.webpBanner || defaultImages.banner;
+  }
+  
+  return banner.webpImageUrl || banner.imageUrl || defaultImages.webpBanner || defaultImages.banner;
 };
 
 /**
@@ -99,7 +111,8 @@ export const MovieService = {
     // 处理所有电影的图片URL
     const processedMovies = mockMovies.map(movie => ({
       ...movie,
-      poster: processImageUrl(movie.poster)
+      poster: processImageUrl(movie.poster),
+      webpPoster: movie.webpPoster ? movie.webpPoster : processImageUrl(movie.poster, true)
     }));
     return Promise.resolve(processedMovies);
   },
@@ -111,7 +124,8 @@ export const MovieService = {
       // 处理电影图片URL
       return Promise.resolve({
         ...movie,
-        poster: processImageUrl(movie.poster)
+        poster: processImageUrl(movie.poster),
+        webpPoster: movie.webpPoster ? movie.webpPoster : processImageUrl(movie.poster, true)
       });
     }
     return Promise.resolve(movie);
@@ -142,7 +156,8 @@ export const MovieService = {
     // 处理所有电影的图片URL
     const processedMovies = filteredMovies.map(movie => ({
       ...movie,
-      poster: processImageUrl(movie.poster)
+      poster: processImageUrl(movie.poster),
+      webpPoster: movie.webpPoster ? movie.webpPoster : processImageUrl(movie.poster, true)
     }));
     
     return Promise.resolve(processedMovies);

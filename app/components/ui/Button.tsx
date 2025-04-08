@@ -6,25 +6,6 @@ import classNames from 'classnames';
 type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'link';
 type ButtonSize = 'xs' | 'sm' | 'md' | 'lg';
 
-// Slot组件，接受一个组件并将所有props传递给它
-const Slot = ({
-  children,
-  ...props
-}: React.HTMLAttributes<HTMLElement> & {
-  children?: React.ReactNode;
-}) => {
-  if (!React.isValidElement(children)) {
-    return null;
-  }
-
-  return React.cloneElement(children, {
-    ...props,
-    ...children.props,
-    // 合并className
-    className: classNames(props.className, children.props.className),
-  });
-};
-
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
@@ -33,7 +14,6 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   icon?: React.ReactNode;
   iconPosition?: 'left' | 'right';
   children?: React.ReactNode;
-  asChild?: boolean;
 }
 
 const variantStyles: Record<ButtonVariant, string> = {
@@ -63,7 +43,6 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       className,
       disabled,
       children,
-      asChild = false,
       ...props
     },
     ref
@@ -77,9 +56,13 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       className
     );
 
-    // 包装子元素的内容
-    const content = (
-      <>
+    return (
+      <button
+        ref={ref}
+        disabled={disabled || isLoading}
+        className={buttonClasses}
+        {...props}
+      >
         {isLoading && (
           <svg
             className="animate-spin -ml-1 mr-2 h-4 w-4 text-current"
@@ -105,30 +88,6 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         {icon && iconPosition === 'left' && !isLoading && <span className="mr-2">{icon}</span>}
         {children}
         {icon && iconPosition === 'right' && <span className="ml-2">{icon}</span>}
-      </>
-    );
-
-    // 如果asChild为true，渲染为Slot
-    if (asChild) {
-      return (
-        <Slot
-          className={buttonClasses}
-          disabled={disabled || isLoading}
-          {...props}
-        >
-          {children}
-        </Slot>
-      );
-    }
-
-    return (
-      <button
-        ref={ref}
-        disabled={disabled || isLoading}
-        className={buttonClasses}
-        {...props}
-      >
-        {content}
       </button>
     );
   }

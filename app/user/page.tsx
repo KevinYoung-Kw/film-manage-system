@@ -24,7 +24,7 @@ export default function UserHome() {
       {/* Banner区域 */}
       <div className="relative w-full h-64 mb-6">
         <Image
-          src={featuredBanner.imageUrl || defaultImages.banner}
+          src={featuredBanner.webpImageUrl || featuredBanner.imageUrl || defaultImages.webpBanner || defaultImages.banner}
           alt="Banner"
           fill
           className="object-cover brightness-75"

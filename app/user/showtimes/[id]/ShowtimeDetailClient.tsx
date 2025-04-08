@@ -160,6 +160,15 @@ export default function ShowtimeDetailClient({ showtime, movie, theater }: Showt
                 <MapPin className="h-4 w-4 mr-1" />
                 {theater.name}
               </div>
+              {theater.equipment && theater.equipment.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {theater.equipment.map((item: string, idx: number) => (
+                    <span key={idx} className="inline-flex text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

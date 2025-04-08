@@ -19,11 +19,11 @@ export default function NotFound() {
           抱歉，您尝试访问的页面不存在或已被移除。
         </p>
         <div className="mt-6">
-          <Button asChild className="bg-blue-600 hover:bg-blue-700">
-            <Link href="/">
+          <Link href="/">
+            <Button className="bg-blue-600 hover:bg-blue-700">
               回到首页
-            </Link>
-          </Button>
+            </Button>
+          </Link>
         </div>
       </div>
     </div>

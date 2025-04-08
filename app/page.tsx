@@ -39,7 +39,7 @@ export default function Home() {
         <div className="flex justify-center mb-4">
           <div className="relative w-24 h-24">
             <Image
-              src={defaultImages.logo}
+              src={defaultImages.webpLogo || defaultImages.logo}
               alt="Logo"
               fill
               className="object-contain"

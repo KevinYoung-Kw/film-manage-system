@@ -125,6 +125,15 @@ export default function SeatSelectionPage() {
         </div>
         <div className="text-sm text-slate-500 mt-1">
           {theater.name}
+          {theater.equipment && theater.equipment.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {theater.equipment.map((item: string, idx: number) => (
+                <span key={idx} className="inline-flex text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
+                  {item}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
       

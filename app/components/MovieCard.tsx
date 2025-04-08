@@ -21,6 +21,9 @@ const MovieCard: React.FC<MovieCardProps> = ({
   variant = 'default',
   className 
 }) => {
+  // 获取封面图片，优先使用webp格式
+  const posterSrc = movie.webpPoster || movie.poster || defaultImages.webpMoviePoster || defaultImages.moviePoster;
+  
   // 根据variant选择不同的卡片样式
   if (variant === 'compact') {
     return (
@@ -31,7 +34,7 @@ const MovieCard: React.FC<MovieCardProps> = ({
         >
           <div className="relative w-24 h-full flex-shrink-0">
             <Image
-              src={movie.poster || defaultImages.moviePoster}
+              src={posterSrc}
               alt={movie.title}
               fill
               className="object-cover"
@@ -66,7 +69,7 @@ const MovieCard: React.FC<MovieCardProps> = ({
       >
         <div className="relative w-full h-48">
           <Image
-            src={movie.poster || defaultImages.moviePoster}
+            src={posterSrc}
             alt={movie.title}
             fill
             className="object-cover"

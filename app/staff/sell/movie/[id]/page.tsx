@@ -110,7 +110,7 @@ export default function StaffMovieDetailPage() {
           <div className="p-4 flex space-x-4">
             <div className="relative h-40 w-28 flex-shrink-0 rounded overflow-hidden">
               <Image
-                src={movie.poster || defaultImages.moviePoster}
+                src={movie.webpPoster || movie.poster || defaultImages.webpMoviePoster || defaultImages.moviePoster}
                 alt={movie.title}
                 fill
                 className="object-cover"

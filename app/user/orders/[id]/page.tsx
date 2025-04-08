@@ -124,7 +124,7 @@ export default function OrderDetailPage() {
             <div className="flex items-center">
               <div className="relative h-20 w-14 rounded overflow-hidden bg-white/10">
                 <Image
-                  src={movie.poster || defaultImages.moviePoster}
+                  src={movie.webpPoster || movie.poster || defaultImages.webpMoviePoster || defaultImages.moviePoster}
                   alt={movie.title}
                   fill
                   className="object-cover"

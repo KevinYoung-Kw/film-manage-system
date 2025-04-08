@@ -55,8 +55,19 @@ const ShowtimeCard: React.FC<ShowtimeCardProps> = ({
         </div>
       </div>
       
-      <div className="flex justify-between items-center mt-3">
-        <div className="text-sm">{theater.name}</div>
+      <div className="flex justify-between items-start mt-3">
+        <div>
+          <div className="text-sm font-medium">{theater.name}</div>
+          {theater.equipment && theater.equipment.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {theater.equipment.map((item, idx) => (
+                <span key={idx} className="inline-flex text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
+                  {item}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="text-xs text-slate-500">
           {date} {dayOfWeek}
         </div>
