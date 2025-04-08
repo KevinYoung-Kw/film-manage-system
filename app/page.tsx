@@ -1,12 +1,32 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Film, Users, Settings, User, UserRound, Shield } from 'lucide-react';
+import { useAppContext } from './lib/context/AppContext';
+import { UserRole } from './lib/types';
 
 export default function Home() {
   const router = useRouter();
+  const { isAuthenticated, currentUser, userRole } = useAppContext();
+
+  // 如果用户已登录，自动重定向到对应的页面
+  useEffect(() => {
+    if (isAuthenticated && currentUser) {
+      switch (userRole) {
+        case UserRole.ADMIN:
+          router.push('/admin');
+          break;
+        case UserRole.STAFF:
+          router.push('/staff');
+          break;
+        case UserRole.CUSTOMER:
+          router.push('/user');
+          break;
+      }
+    }
+  }, [isAuthenticated, currentUser, userRole, router]);
 
   const navigateTo = (path: string) => {
     router.push(path);

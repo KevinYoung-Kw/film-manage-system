@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Plus, Edit, Trash2, Filter, X, Calendar, Clock } from 'lucide-react';
+import { Plus, Edit, Trash2, Filter, X, Calendar, Clock, Check } from 'lucide-react';
 import { mockMovies } from '@/app/lib/mockData';
 import { MovieStatus } from '@/app/lib/types';
 
@@ -10,9 +10,12 @@ export default function MoviesManagementPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [currentMovie, setCurrentMovie] = useState<any>(null);
+  const [movies, setMovies] = useState(mockMovies);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [editedMovie, setEditedMovie] = useState<any>(null);
   
   // 过滤电影列表
-  const filteredMovies = mockMovies.filter(movie => {
+  const filteredMovies = movies.filter(movie => {
     if (filter === 'all') return true;
     if (filter === 'showing' && movie.status === MovieStatus.SHOWING) return true;
     if (filter === 'coming_soon' && movie.status === MovieStatus.COMING_SOON) return true;
@@ -23,13 +26,51 @@ export default function MoviesManagementPage() {
   // 处理编辑电影
   const handleEditMovie = (movie: any) => {
     setCurrentMovie(movie);
+    setEditedMovie({...movie}); // 创建副本以便编辑
     setShowEditModal(true);
+  };
+
+  // 处理输入变化
+  const handleInputChange = (field: string, value: any) => {
+    setEditedMovie(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  // 处理多值字段的变化（如genre, actors）
+  const handleArrayInputChange = (field: string, value: string) => {
+    const array = value.split(',').map(item => item.trim()).filter(item => item !== '');
+    setEditedMovie(prev => ({
+      ...prev,
+      [field]: array
+    }));
+  };
+
+  // 处理保存编辑
+  const handleSaveEdit = () => {
+    // 更新电影数据
+    setMovies(prevMovies => 
+      prevMovies.map(movie => 
+        movie.id === editedMovie.id ? editedMovie : movie
+      )
+    );
+    
+    // 显示成功消息
+    setSaveSuccess(true);
+    
+    // 3秒后关闭成功消息
+    setTimeout(() => {
+      setSaveSuccess(false);
+      setShowEditModal(false);
+    }, 1500);
   };
 
   // 处理删除电影
   const handleDeleteMovie = (movieId: string) => {
-    // 在真实应用中，这里会调用API删除电影
-    alert(`删除电影 ID: ${movieId}`);
+    if (confirm('确定要删除这部电影吗？')) {
+      setMovies(prevMovies => prevMovies.filter(movie => movie.id !== movieId));
+    }
   };
 
   return (
@@ -43,6 +84,14 @@ export default function MoviesManagementPage() {
           <Plus size={16} className="mr-1" /> 新增
         </button>
       </div>
+
+      {/* 保存成功提示 */}
+      {saveSuccess && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded flex items-center z-50">
+          <Check size={16} className="mr-2" />
+          保存成功
+        </div>
+      )}
 
       {/* 过滤选项 */}
       <div className="flex items-center mb-4 bg-white rounded-lg shadow p-2">
@@ -191,7 +240,7 @@ export default function MoviesManagementPage() {
       )}
 
       {/* 编辑电影模态框 */}
-      {showEditModal && currentMovie && (
+      {showEditModal && editedMovie && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
             <div className="p-4 border-b flex justify-between items-center">
@@ -204,13 +253,14 @@ export default function MoviesManagementPage() {
               </button>
             </div>
             <div className="p-4">
-              <form className="space-y-4">
+              <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">电影名称</label>
                   <input 
                     type="text" 
                     className="w-full p-2 border rounded-md" 
-                    defaultValue={currentMovie.title}
+                    value={editedMovie.title}
+                    onChange={(e) => handleInputChange('title', e.target.value)}
                   />
                 </div>
                 <div>
@@ -218,7 +268,8 @@ export default function MoviesManagementPage() {
                   <input 
                     type="text" 
                     className="w-full p-2 border rounded-md" 
-                    defaultValue={currentMovie.poster}
+                    value={editedMovie.poster}
+                    onChange={(e) => handleInputChange('poster', e.target.value)}
                   />
                 </div>
                 <div>
@@ -226,7 +277,8 @@ export default function MoviesManagementPage() {
                   <input 
                     type="text" 
                     className="w-full p-2 border rounded-md" 
-                    defaultValue={currentMovie.director}
+                    value={editedMovie.director}
+                    onChange={(e) => handleInputChange('director', e.target.value)}
                   />
                 </div>
                 <div>
@@ -234,7 +286,8 @@ export default function MoviesManagementPage() {
                   <input 
                     type="text" 
                     className="w-full p-2 border rounded-md" 
-                    defaultValue={currentMovie.actors.join(', ')}
+                    value={editedMovie.actors.join(', ')}
+                    onChange={(e) => handleArrayInputChange('actors', e.target.value)}
                   />
                 </div>
                 <div>
@@ -242,7 +295,8 @@ export default function MoviesManagementPage() {
                   <input 
                     type="number" 
                     className="w-full p-2 border rounded-md" 
-                    defaultValue={currentMovie.duration}
+                    value={editedMovie.duration}
+                    onChange={(e) => handleInputChange('duration', parseInt(e.target.value))}
                   />
                 </div>
                 <div>
@@ -251,10 +305,11 @@ export default function MoviesManagementPage() {
                     <input 
                       type="date" 
                       className="w-full p-2 border rounded-md" 
-                      defaultValue={currentMovie.releaseDate ? 
-                        new Date(currentMovie.releaseDate).toISOString().split('T')[0] : 
+                      value={editedMovie.releaseDate ? 
+                        new Date(editedMovie.releaseDate).toISOString().split('T')[0] : 
                         ''
                       }
+                      onChange={(e) => handleInputChange('releaseDate', new Date(e.target.value))}
                     />
                     <Calendar size={16} className="absolute right-3 top-3 text-gray-400" />
                   </div>
@@ -264,14 +319,16 @@ export default function MoviesManagementPage() {
                   <input 
                     type="text" 
                     className="w-full p-2 border rounded-md" 
-                    defaultValue={currentMovie.genre.join(', ')}
+                    value={editedMovie.genre.join(', ')}
+                    onChange={(e) => handleArrayInputChange('genre', e.target.value)}
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">电影状态</label>
                   <select 
                     className="w-full p-2 border rounded-md"
-                    defaultValue={currentMovie.status}
+                    value={editedMovie.status}
+                    onChange={(e) => handleInputChange('status', e.target.value)}
                   >
                     <option value="showing">正在上映</option>
                     <option value="coming_soon">即将上映</option>
@@ -279,11 +336,24 @@ export default function MoviesManagementPage() {
                   </select>
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">评分</label>
+                  <input 
+                    type="number" 
+                    step="0.1"
+                    min="0"
+                    max="10"
+                    className="w-full p-2 border rounded-md" 
+                    value={editedMovie.rating}
+                    onChange={(e) => handleInputChange('rating', parseFloat(e.target.value))}
+                  />
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">电影简介</label>
                   <textarea 
                     className="w-full p-2 border rounded-md"
                     rows={4}
-                    defaultValue={currentMovie.description}
+                    value={editedMovie.description}
+                    onChange={(e) => handleInputChange('description', e.target.value)}
                   ></textarea>
                 </div>
                 <div className="flex gap-2 pt-2">
@@ -297,6 +367,7 @@ export default function MoviesManagementPage() {
                   <button 
                     type="button"
                     className="flex-1 bg-indigo-600 text-white py-2 rounded-md"
+                    onClick={handleSaveEdit}
                   >
                     保存
                   </button>

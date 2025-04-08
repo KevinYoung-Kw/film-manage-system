@@ -4,27 +4,29 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Eye, EyeOff, Mail, Lock, ArrowLeft, UserRound, Shield, Film } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, ArrowLeft, User as UserIcon } from 'lucide-react';
 import { useAppContext } from '@/app/lib/context/AppContext';
 import { UserRole } from '@/app/lib/types';
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const router = useRouter();
-  const { login, currentUser, userRole, isAuthenticated } = useAppContext();
+  const { register, isAuthenticated, userRole } = useAppContext();
   
   // 表单状态
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   
   // 已登录用户自动重定向到相应主页
   useEffect(() => {
-    if (isAuthenticated && currentUser) {
+    if (isAuthenticated) {
       redirectToRolePage(userRole!);
     }
-  }, [isAuthenticated, currentUser, userRole]);
+  }, [isAuthenticated, userRole]);
   
   // 根据用户角色重定向到相应页面
   const redirectToRolePage = (role: UserRole) => {
@@ -43,12 +45,23 @@ export default function LoginPage() {
     }
   };
   
-  // 处理登录提交
+  // 处理注册提交
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!email || !password) {
-      setError('请输入邮箱和密码');
+    // 表单验证
+    if (!name || !email || !password || !confirmPassword) {
+      setError('请填写所有必填项');
+      return;
+    }
+    
+    if (password !== confirmPassword) {
+      setError('两次输入的密码不一致');
+      return;
+    }
+    
+    if (password.length < 6) {
+      setError('密码长度必须至少为6个字符');
       return;
     }
     
@@ -56,47 +69,17 @@ export default function LoginPage() {
     setError('');
     
     try {
-      const user = await login(email, password);
+      // 默认注册为普通用户
+      const user = await register(name, email, password, UserRole.CUSTOMER);
       
       if (user) {
-        redirectToRolePage(user.role);
+        router.push('/user');
       } else {
-        setError('邮箱或密码错误');
+        setError('注册失败，请稍后重试');
       }
     } catch (err) {
-      setError('登录失败，请稍后重试');
-      console.error('登录错误:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  // 快速登录选项
-  const demoAccounts = [
-    { email: 'admin@example.com', password: '123456', role: UserRole.ADMIN, icon: Shield, label: '管理员', color: 'indigo' },
-    { email: 'staff1@example.com', password: '123456', role: UserRole.STAFF, icon: Film, label: '售票员', color: 'green' },
-    { email: 'customer1@example.com', password: '123456', role: UserRole.CUSTOMER, icon: UserRound, label: '观众', color: 'blue' }
-  ];
-  
-  // 使用演示账户登录
-  const loginWithDemoAccount = async (account: typeof demoAccounts[0]) => {
-    setEmail(account.email);
-    setPassword(account.password);
-    
-    setIsLoading(true);
-    setError('');
-    
-    try {
-      const user = await login(account.email, account.password);
-      
-      if (user) {
-        redirectToRolePage(user.role);
-      } else {
-        setError('演示账户登录失败');
-      }
-    } catch (err) {
-      setError('登录失败，请稍后重试');
-      console.error('演示账户登录错误:', err);
+      setError('注册失败，请稍后重试');
+      console.error('注册错误:', err);
     } finally {
       setIsLoading(false);
     }
@@ -125,12 +108,30 @@ export default function LoginPage() {
               />
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-slate-800">登录账户</h1>
-          <p className="text-slate-500 mt-2">欢迎回到电影票务系统</p>
+          <h1 className="text-2xl font-bold text-slate-800">注册账户</h1>
+          <p className="text-slate-500 mt-2">创建新账户，享受电影购票服务</p>
         </div>
         
-        {/* 登录表单 */}
+        {/* 注册表单 */}
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* 姓名输入 */}
+          <div>
+            <label htmlFor="name" className="block text-sm font-medium text-slate-700 mb-1">姓名</label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <UserIcon size={18} className="text-slate-400" />
+              </div>
+              <input
+                id="name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="您的姓名"
+              />
+            </div>
+          </div>
+          
           {/* 邮箱输入 */}
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">邮箱</label>
@@ -162,7 +163,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="block w-full pl-10 pr-10 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                placeholder="••••••••"
+                placeholder="至少6个字符"
               />
               <button
                 type="button"
@@ -178,6 +179,24 @@ export default function LoginPage() {
             </div>
           </div>
           
+          {/* 确认密码输入 */}
+          <div>
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-700 mb-1">确认密码</label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Lock size={18} className="text-slate-400" />
+              </div>
+              <input
+                id="confirmPassword"
+                type={showPassword ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="再次输入密码"
+              />
+            </div>
+          </div>
+          
           {/* 错误提示 */}
           {error && (
             <div className="p-2 text-sm text-red-600 bg-red-50 rounded border border-red-100">
@@ -185,58 +204,21 @@ export default function LoginPage() {
             </div>
           )}
           
-          {/* 登录按钮 */}
+          {/* 注册按钮 */}
           <button
             type="submit"
             disabled={isLoading}
             className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
           >
-            {isLoading ? '登录中...' : '登录'}
+            {isLoading ? '注册中...' : '注册账户'}
           </button>
-          
-          {/* 演示账户快速登录 */}
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-200"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-slate-50 text-slate-500">快速登录演示账户</span>
-              </div>
-            </div>
-            
-            <div className="mt-4 grid grid-cols-3 gap-3">
-              {demoAccounts.map((account) => {
-                const IconComponent = account.icon;
-                const bgColorClass = `bg-${account.color}-100`;
-                const textColorClass = `text-${account.color}-700`;
-                const hoverClass = `hover:bg-${account.color}-200`;
-                
-                return (
-                  <button
-                    key={account.email}
-                    type="button"
-                    onClick={() => loginWithDemoAccount(account)}
-                    disabled={isLoading}
-                    className={`${bgColorClass} ${textColorClass} ${hoverClass} flex flex-col items-center justify-center p-3 rounded-md transition-colors`}
-                  >
-                    <IconComponent size={24} />
-                    <span className="mt-1 text-xs">{account.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
         </form>
         
         {/* 其他选项 */}
         <div className="mt-8 text-center text-sm">
-          <Link href="/forgot-password" className="text-indigo-600 hover:text-indigo-500">
-            忘记密码?
-          </Link>
-          <span className="mx-2 text-slate-300">|</span>
-          <Link href="/register" className="text-indigo-600 hover:text-indigo-500">
-            注册新账户
+          <span className="text-slate-600">已有账户?</span>
+          <Link href="/login" className="ml-1 text-indigo-600 hover:text-indigo-500">
+            返回登录
           </Link>
         </div>
       </div>

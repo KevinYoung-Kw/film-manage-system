@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@headlessui/react": "^2.2.1",
+    "@supabase/supabase-js": "^2.42.0",
     "classnames": "^2.5.1",
     "date-fns": "^4.1.0",
     "lucide-react": "^0.487.0",
