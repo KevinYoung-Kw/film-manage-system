@@ -261,10 +261,10 @@ function PaymentContent() {
           <div>
             <h3 className="font-semibold">{movie.title}</h3>
             <p className="text-sm text-gray-600 mb-1">
-              {format(new Date(showtime.datetime), 'MM月dd日 HH:mm')}
+              {format(new Date(showtime.startTime), 'MM月dd日 HH:mm')}
             </p>
             <p className="text-sm text-gray-600 mb-1">
-              {theater?.name} {showtime.hall}
+              {theater?.name}
             </p>
             <div className="mt-2">
               <p className="text-sm">
@@ -309,7 +309,7 @@ function PaymentContent() {
     const seat = currentShowtime.availableSeats.find((s: any) => s.id === seatId);
     if (!seat) return seatId;
     
-    return `${seat.row}排${seat.number}号`;
+    return `${seat.row}排${seat.column}号`;
   };
   
   // 获取座位类型
