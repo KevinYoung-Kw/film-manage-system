@@ -76,6 +76,21 @@ export default function UserMovieDetail() {
     fetchData();
   }, [movieId, router]);
   
+  // 添加全局错误处理，防止整个应用崩溃
+  React.useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      console.error('全局错误捕获:', event.error);
+      // 防止默认行为（崩溃）
+      event.preventDefault();
+    };
+    
+    window.addEventListener('error', handleError);
+    
+    return () => {
+      window.removeEventListener('error', handleError);
+    };
+  }, []);
+  
   if (loading) {
     return (
       <MobileLayout title="电影详情" showBackButton>
@@ -125,6 +140,12 @@ export default function UserMovieDetail() {
           className="object-cover"
           priority
           unoptimized
+          onError={(e) => {
+            // 图片加载失败时使用默认图片
+            const imgElement = e.currentTarget as HTMLImageElement;
+            imgElement.onerror = null; // 防止循环触发
+            imgElement.src = defaultImages.moviePoster;
+          }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 to-transparent flex flex-col justify-end p-4">
           <div className="flex items-start justify-between">
@@ -258,8 +279,13 @@ function isValidDate(date: any): boolean {
   // 如果是字符串或数字，尝试创建Date对象
   try {
     const d = new Date(date);
+    // 确保年份是合理的（避免极端情况）
+    if (d.getFullYear() < 1900 || d.getFullYear() > 2100) {
+      return false;
+    }
     return !isNaN(d.getTime());
   } catch (e) {
+    console.error("日期解析错误:", e);
     return false;
   }
 } 

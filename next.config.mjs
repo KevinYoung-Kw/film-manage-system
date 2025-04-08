@@ -2,8 +2,8 @@
 const nextConfig = {
   // 开启图片优化功能
   images: {
-    domains: ['images.unsplash.com'],
-    unoptimized: process.env.NODE_ENV === 'development',
+    domains: ['images.unsplash.com', 'image.tmdb.org', 'localhost'],
+    unoptimized: true, // 在所有环境中都不优化图片，确保一致性
   },
   
   // 页面响应和构建时配置
