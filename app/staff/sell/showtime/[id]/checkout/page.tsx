@@ -57,8 +57,7 @@ export default function StaffCheckoutPage() {
       [TicketType.NORMAL]: '普通票',
       [TicketType.STUDENT]: '学生票',
       [TicketType.SENIOR]: '老人票',
-      [TicketType.CHILD]: '儿童票',
-      [TicketType.VIP]: 'VIP票'
+      [TicketType.CHILD]: '儿童票'
     };
     return labels[type];
   };

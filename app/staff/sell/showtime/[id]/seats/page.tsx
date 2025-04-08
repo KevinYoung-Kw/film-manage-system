@@ -75,8 +75,42 @@ export default function StaffSeatSelectionPage() {
     return `${rowLabel}${seat.column}`;
   };
   
+  // 获取票类型的显示名称
+  const getTicketTypeLabel = (type: TicketType): string => {
+    const labels: Record<TicketType, string> = {
+      [TicketType.NORMAL]: '普通票',
+      [TicketType.STUDENT]: '学生票',
+      [TicketType.SENIOR]: '老人票',
+      [TicketType.CHILD]: '儿童票',
+    };
+    return labels[type];
+  };
+  
   // 计算总价
-  const totalPrice = selectedSeats.length * (showtime?.price[ticketType] || 0);
+  const calculateTotalPrice = () => {
+    if (!showtime) return 0;
+    
+    let total = 0;
+    
+    // 对每个选中的座位，计算其价格
+    selectedSeats.forEach(seatId => {
+      const seat = showtime.availableSeats.find((s: any) => s.id === seatId);
+      if (seat) {
+        // 基础票价取决于票类型
+        const basePrice = showtime.price[ticketType];
+        // 根据座位类型应用乘数
+        const multiplier = seat.type === 'vip' ? 1.2 : 
+                         seat.type === 'disabled' ? 0.6 : 1.0;
+        
+        total += basePrice * multiplier;
+      }
+    });
+    
+    return total;
+  };
+  
+  // 总价根据座位类型和票价类型计算
+  const totalPrice = calculateTotalPrice();
   
   // 处理提交订单
   const handleSubmitOrder = () => {
@@ -112,18 +146,6 @@ export default function StaffSeatSelectionPage() {
     
     // 跳转到支付页面
     router.push(staffRoutes.sellCheckout(showtime.id));
-  };
-  
-  // 获取票类型的显示名称
-  const getTicketTypeLabel = (type: TicketType): string => {
-    const labels: Record<TicketType, string> = {
-      [TicketType.NORMAL]: '普通票',
-      [TicketType.STUDENT]: '学生票',
-      [TicketType.SENIOR]: '老人票',
-      [TicketType.CHILD]: '儿童票',
-      [TicketType.VIP]: 'VIP票'
-    };
-    return labels[type];
   };
   
   if (!showtime || !movie || !theater) {
@@ -183,107 +205,4 @@ export default function StaffSeatSelectionPage() {
                     ticketCount === count 
                       ? 'bg-indigo-600 text-white' 
                       : 'bg-slate-100 text-slate-700'
-                  }`}
-                >
-                  {count}
-                </button>
-              ))}
-            </div>
-          </div>
-          
-          {/* 票类型选择 */}
-          <div className="p-4 border-b border-slate-100">
-            <h3 className="font-medium mb-3">选择票类型</h3>
-            <div className="flex flex-wrap gap-2">
-              {Object.values(TicketType).map((type) => (
-                <button
-                  key={type}
-                  className={`py-1 px-3 rounded-full text-sm ${
-                    ticketType === type
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-slate-100 text-slate-700'
-                  }`}
-                  onClick={() => handleTicketTypeChange(type)}
-                >
-                  {getTicketTypeLabel(type)} ¥{showtime.price[type]}
-                </button>
-              ))}
-            </div>
-          </div>
-        </Card>
-        
-        {/* 座位图 */}
-        <div className="bg-white p-4 mt-2">
-          <h3 className="font-medium mb-4">请选择座位</h3>
-          <SeatMap
-            seats={showtime.availableSeats}
-            rows={theater.rows}
-            columns={theater.columns}
-            selectedSeats={selectedSeats}
-            onSeatSelect={handleSeatSelection}
-            maxSelectableSeats={ticketCount}
-          />
-        </div>
-        
-        {/* 已选座位 */}
-        <div className="bg-white p-4 mt-2">
-          <h3 className="font-medium mb-3">已选座位</h3>
-          {selectedSeats.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {selectedSeats.map(seatId => (
-                <div 
-                  key={seatId} 
-                  className="flex items-center bg-indigo-50 text-indigo-700 rounded-full py-1 px-3"
-                >
-                  <span className="text-sm">{getSeatLabel(seatId)}</span>
-                  <button 
-                    onClick={() => handleSeatSelection(seatId)}
-                    className="ml-1 p-1 rounded-full hover:bg-indigo-100"
-                  >
-                    <span className="sr-only">移除</span>
-                    <svg 
-                      xmlns="http://www.w3.org/2000/svg" 
-                      className="h-3 w-3" 
-                      viewBox="0 0 20 20" 
-                      fill="currentColor"
-                    >
-                      <path 
-                        fillRule="evenodd" 
-                        d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" 
-                        clipRule="evenodd" 
-                      />
-                    </svg>
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-slate-500 text-sm">请在座位图上选择座位</p>
-          )}
-        </div>
-      </div>
-      
-      {/* 底部结算栏 */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-4 py-4 max-w-md mx-auto z-20">
-        <div className="flex justify-between items-center mb-2">
-          <div>
-            <div className="text-sm text-slate-600">总价</div>
-            <div className="text-xl font-semibold text-indigo-600">¥{totalPrice}</div>
-          </div>
-          <div className="text-sm text-slate-500">
-            {selectedSeats.length}张票 × ¥{showtime.price[ticketType]}
-          </div>
-        </div>
-        <Button
-          variant="primary"
-          fullWidth
-          disabled={selectedSeats.length !== ticketCount}
-          onClick={handleSubmitOrder}
-        >
-          <CreditCard className="h-4 w-4 mr-2" />
-          确认选座并结算
-        </Button>
-      </div>
-    </MobileLayout>
-  );
-} 
+                  }`

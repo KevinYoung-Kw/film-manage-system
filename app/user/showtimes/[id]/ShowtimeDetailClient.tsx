@@ -24,7 +24,7 @@ interface ShowtimeDetailClientProps {
 export default function ShowtimeDetailClient({ showtime, movie, theater }: ShowtimeDetailClientProps) {
   const router = useRouter();
   const { selectShowtime, selectedSeats, selectSeat, unselectSeat, clearSelectedSeats } = useAppContext();
-  const [ticketType, setTicketType] = useState<TicketType>(TicketType.NORMAL);
+  const [selectedTicketType, setSelectedTicketType] = useState<TicketType>(TicketType.NORMAL);
   
   // 使用ref跟踪初始化状态，避免重复设置
   const isInitialized = useRef(false);
@@ -63,12 +63,32 @@ export default function ShowtimeDetailClient({ showtime, movie, theater }: Showt
     }
   };
   
-  // 计算总价
-  const totalPrice = selectedSeats.length * showtime.price[ticketType];
+  // 计算总价，根据座位类型和票类型
+  const calculateTotalPrice = () => {
+    let total = 0;
+    
+    // 对每个选中的座位，计算其价格
+    selectedSeats.forEach(seatId => {
+      const seat = showtime.availableSeats.find((s: any) => s.id === seatId);
+      if (seat) {
+        // 基础票价取决于票类型
+        const basePrice = showtime.price[selectedTicketType];
+        // 根据座位类型应用乘数
+        const multiplier = seat.type === 'vip' ? 1.2 : 
+                         seat.type === 'disabled' ? 0.6 : 1.0;
+        
+        total += basePrice * multiplier;
+      }
+    });
+    
+    return total;
+  };
+  
+  const totalPrice = calculateTotalPrice();
   
   // 处理票类型选择
   const handleTicketTypeChange = (type: TicketType) => {
-    setTicketType(type);
+    setSelectedTicketType(type);
   };
   
   // 显示座位序号
@@ -93,7 +113,7 @@ export default function ShowtimeDetailClient({ showtime, movie, theater }: Showt
     const orderData = {
       showtimeId: showtime.id,
       seats: selectedSeats,
-      ticketType,
+      ticketType: selectedTicketType,
       totalPrice,
       movieTitle: movie.title,
       theaterName: theater.name,
@@ -152,7 +172,7 @@ export default function ShowtimeDetailClient({ showtime, movie, theater }: Showt
               <button
                 key={type}
                 className={`py-1 px-3 rounded-full text-sm ${
-                  ticketType === type
+                  selectedTicketType === type
                     ? 'bg-indigo-600 text-white'
                     : 'bg-slate-100 text-slate-700'
                 }`}
@@ -210,8 +230,19 @@ export default function ShowtimeDetailClient({ showtime, movie, theater }: Showt
             <div className="text-sm text-slate-600">总价</div>
             <div className="text-xl font-semibold text-indigo-600">¥{totalPrice}</div>
           </div>
-          <div className="text-sm text-slate-500">
-            {selectedSeats.length}张票 × ¥{showtime.price[ticketType]}
+          <div className="text-sm text-slate-500 text-right">
+            <div>{selectedSeats.length}张{getTicketTypeLabel(selectedTicketType)}</div>
+            <div className="mt-1 text-xs">
+              {selectedSeats.some(seatId => {
+                const seat = showtime.availableSeats.find(s => s.id === seatId);
+                return seat && seat.type === 'vip';
+              }) && <span className="text-amber-600 mr-2">含VIP座位(×1.2)</span>}
+              
+              {selectedSeats.some(seatId => {
+                const seat = showtime.availableSeats.find(s => s.id === seatId);
+                return seat && seat.type === 'disabled';
+              }) && <span className="text-blue-600">含无障碍座位(×0.6)</span>}
+            </div>
           </div>
         </div>
         <Button
@@ -236,8 +267,7 @@ function getTicketTypeLabel(type: TicketType): string {
     [TicketType.NORMAL]: '普通票',
     [TicketType.STUDENT]: '学生票',
     [TicketType.SENIOR]: '老人票',
-    [TicketType.CHILD]: '儿童票',
-    [TicketType.VIP]: 'VIP票'
+    [TicketType.CHILD]: '儿童票'
   };
   return labels[type];
 } 

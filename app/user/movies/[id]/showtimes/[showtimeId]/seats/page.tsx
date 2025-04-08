@@ -90,7 +90,28 @@ export default function SeatSelectionPage() {
     );
   }
   
-  const totalPrice = ticketCount * showtime.price[TicketType.NORMAL];
+  // 计算总价，根据座位类型和票类型
+  const calculateTotalPrice = () => {
+    let total = 0;
+    
+    // 对每个选中的座位，计算其价格
+    selectedSeats.forEach(seatId => {
+      const seat = showtime.availableSeats.find((s: any) => s.id === seatId);
+      if (seat) {
+        // 基础票价
+        const basePrice = showtime.price[TicketType.NORMAL];
+        // 根据座位类型应用乘数
+        const multiplier = seat.type === 'vip' ? 1.2 : 
+                         seat.type === 'disabled' ? 0.6 : 1.0;
+        
+        total += basePrice * multiplier;
+      }
+    });
+    
+    return total;
+  };
+  
+  const totalPrice = calculateTotalPrice();
   
   return (
     <MobileLayout title="选择座位" showBackButton>
@@ -198,6 +219,17 @@ export default function SeatSelectionPage() {
         <div>
           <div className="text-sm">总计</div>
           <div className="text-red-500 font-bold">¥{totalPrice}</div>
+          <div className="text-xs text-slate-500 mt-1">
+            {selectedSeats.some(seatId => {
+              const seat = showtime.availableSeats.find((s: any) => s.id === seatId);
+              return seat && seat.type === 'vip';
+            }) && <span className="text-amber-600 mr-1">VIP座位×1.2</span>}
+            
+            {selectedSeats.some(seatId => {
+              const seat = showtime.availableSeats.find((s: any) => s.id === seatId);
+              return seat && seat.type === 'disabled';
+            }) && <span className="text-blue-600">无障碍座位×0.6</span>}
+          </div>
         </div>
         <Button
           variant="primary"

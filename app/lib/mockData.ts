@@ -214,8 +214,7 @@ export const mockShowtimes: Showtime[] = [
       [TicketType.NORMAL]: 60,
       [TicketType.STUDENT]: 30,
       [TicketType.SENIOR]: 30,
-      [TicketType.CHILD]: 30,
-      [TicketType.VIP]: 80
+      [TicketType.CHILD]: 30
     },
     availableSeats: generateSeats(mockTheaters[1])
   },
@@ -229,8 +228,7 @@ export const mockShowtimes: Showtime[] = [
       [TicketType.NORMAL]: 50,
       [TicketType.STUDENT]: 25,
       [TicketType.SENIOR]: 25,
-      [TicketType.CHILD]: 25,
-      [TicketType.VIP]: 70
+      [TicketType.CHILD]: 25
     },
     availableSeats: generateSeats(mockTheaters[2])
   },
@@ -244,8 +242,7 @@ export const mockShowtimes: Showtime[] = [
       [TicketType.NORMAL]: 90,
       [TicketType.STUDENT]: 45,
       [TicketType.SENIOR]: 45,
-      [TicketType.CHILD]: 45,
-      [TicketType.VIP]: 120
+      [TicketType.CHILD]: 45
     },
     availableSeats: generateSeats(mockTheaters[0])
   }

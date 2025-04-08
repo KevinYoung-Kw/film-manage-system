@@ -64,6 +64,14 @@ export enum TicketType {
   CHILD = 'child',
 }
 
+// 座位类型价格系数
+export const SeatTypeMultiplier = {
+  'normal': 1.0,
+  'vip': 1.2,   // VIP座位价格为基础价格的1.2倍
+  'couple': 1.0,
+  'disabled': 0.6
+}
+
 // 电影场次
 export interface Showtime {
   id: string;

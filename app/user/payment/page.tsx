@@ -38,6 +38,7 @@ function PaymentContent() {
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
   const [orderId, setOrderId] = useState<string | null>(null);
+  const [showTimeoutModal, setShowTimeoutModal] = useState(false);
   
   const showtimeId = searchParams.get('showtimeId');
   const seatsParam = searchParams.get('seats');
@@ -92,8 +93,21 @@ function PaymentContent() {
         if (relatedTheater) setTheater(relatedTheater);
         
         // 计算总价
-        const basePricePerSeat = targetShowtime.price[TicketType.NORMAL];
-        setTotalPrice(basePricePerSeat * seatArray.length);
+        let totalAmount = 0;
+        // 对每个选中的座位，计算其价格
+        seatArray.forEach(seatId => {
+          const seat = targetShowtime.availableSeats.find((s: any) => s.id === seatId);
+          if (seat) {
+            // 基础票价
+            const basePrice = targetShowtime.price[TicketType.NORMAL];
+            // 根据座位类型应用乘数
+            const multiplier = seat.type === 'vip' ? 1.2 : 
+                            seat.type === 'disabled' ? 0.6 : 1.0;
+            
+            totalAmount += basePrice * multiplier;
+          }
+        });
+        setTotalPrice(totalAmount);
         
         // 设置 selectedShowtime 以便在 createOrder 时使用
         selectShowtime(targetShowtime);
@@ -108,7 +122,7 @@ function PaymentContent() {
     loadData();
   }, [showtimeId, seats, router, initialized, selectShowtime, orders]);
   
-  // 单独的倒计时效果
+  // 修改倒计时效果，在结束时显示弹窗
   useEffect(() => {
     // 仅当处于待支付状态时才启动倒计时
     if (paymentStatus !== PaymentStatus.PENDING) return;
@@ -117,8 +131,8 @@ function PaymentContent() {
       setCountdown(prev => {
         if (prev <= 1) {
           clearInterval(timer);
-          // 倒计时结束后，如果用户仍未支付，则跳转回电影列表
-          router.push(userRoutes.movieList);
+          // 倒计时结束后显示超时弹窗
+          setShowTimeoutModal(true);
           return 0;
         }
         return prev - 1;
@@ -128,7 +142,12 @@ function PaymentContent() {
     return () => {
       clearInterval(timer);
     };
-  }, [paymentStatus, router]);
+  }, [paymentStatus]);
+  
+  // 处理超时后返回
+  const handleTimeoutReturn = () => {
+    router.push(userRoutes.movieList);
+  };
   
   // 根据支付状态进行路由跳转
   useEffect(() => {
@@ -260,11 +279,54 @@ function PaymentContent() {
               </div>
             </div>
           </div>
+          
+          {/* 座位信息 */}
+          <div className="mt-4 pt-4 border-t border-slate-100">
+            <h3 className="text-sm font-medium mb-2">座位信息</h3>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {selectedSeats.map(seatId => {
+                const seat = showtime.availableSeats.find((s: any) => s.id === seatId);
+                if (!seat) return null;
+                
+                // 转换为字母行号 (A, B, C...)
+                const rowLabel = String.fromCharCode(64 + seat.row);
+                const seatType = getSeatTypeLabel(seat.type);
+                const typeColor = getSeatTypeColor(seat.type);
+                
+                return (
+                  <div key={seatId} className={`flex items-center px-2 py-1 rounded-md text-xs ${typeColor}`}>
+                    <span>{rowLabel}{seat.column}</span>
+                    <span className="mx-1">|</span>
+                    <span>{seatType}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          
           <div className="mt-4 pt-4 border-t border-slate-100">
             <div className="flex justify-between items-center">
-              <span className="text-slate-600">票价</span>
-              <span>¥{showtime.price[TicketType.NORMAL]} × {selectedSeats.length}</span>
+              <span className="text-slate-600">票价（普通票）</span>
+              <span>¥{showtime.price[TicketType.NORMAL]}</span>
             </div>
+            {selectedSeats.some(seatId => {
+              const seat = showtime.availableSeats.find((s: any) => s.id === seatId);
+              return seat && seat.type === 'vip';
+            }) && (
+              <div className="flex justify-between items-center mt-2">
+                <span className="text-slate-600">VIP座位加价</span>
+                <span>×1.2</span>
+              </div>
+            )}
+            {selectedSeats.some(seatId => {
+              const seat = showtime.availableSeats.find((s: any) => s.id === seatId);
+              return seat && seat.type === 'disabled';
+            }) && (
+              <div className="flex justify-between items-center mt-2">
+                <span className="text-slate-600">无障碍座位优惠</span>
+                <span>×0.6</span>
+              </div>
+            )}
             <div className="flex justify-between items-center mt-2 font-semibold">
               <span>总计</span>
               <span className="text-lg">¥{totalPrice}</span>
@@ -273,6 +335,31 @@ function PaymentContent() {
         </div>
       </Card>
     );
+  };
+  
+  // 辅助函数：获取座位类型标签
+  const getSeatTypeLabel = (type: string): string => {
+    const labels: Record<string, string> = {
+      'normal': '普通座位',
+      'vip': 'VIP座位',
+      'couple': '情侣座',
+      'disabled': '无障碍座位'
+    };
+    return labels[type] || '普通座位';
+  };
+  
+  // 辅助函数：获取座位类型对应的颜色
+  const getSeatTypeColor = (type: string): string => {
+    switch (type) {
+      case 'vip':
+        return 'bg-amber-50 text-amber-700';
+      case 'couple':
+        return 'bg-pink-50 text-pink-700';
+      case 'disabled':
+        return 'bg-blue-50 text-blue-700';
+      default:
+        return 'bg-slate-50 text-slate-700';
+    }
   };
   
   // 支付方式选择卡片
@@ -338,6 +425,34 @@ function PaymentContent() {
           </div>
         </div>
       </Card>
+    );
+  };
+  
+  // 添加超时弹窗组件
+  const renderTimeoutModal = () => {
+    if (!showTimeoutModal) return null;
+    
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg max-w-md w-full p-6">
+          <div className="flex flex-col items-center">
+            <div className="bg-red-100 p-3 rounded-full mb-4">
+              <X className="h-8 w-8 text-red-500" />
+            </div>
+            <h3 className="text-xl font-bold mb-2">支付超时</h3>
+            <p className="text-slate-600 text-center mb-6">
+              订单支付已超时，座位已被释放。请重新选择座位进行购票。
+            </p>
+            <Button
+              variant="primary"
+              className="w-full"
+              onClick={handleTimeoutReturn}
+            >
+              返回电影列表
+            </Button>
+          </div>
+        </div>
+      </div>
     );
   };
   
@@ -455,6 +570,9 @@ function PaymentContent() {
           </p>
         </div>
       </div>
+      
+      {/* 支付超时弹窗 */}
+      {renderTimeoutModal()}
     </MobileLayout>
   );
 }
