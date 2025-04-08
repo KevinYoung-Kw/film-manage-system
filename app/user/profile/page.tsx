@@ -5,12 +5,12 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { 
   User, Settings, CreditCard, Ticket, LogOut, ChevronRight, 
-  Heart, History, Phone, Mail, Gift 
+  Heart, History, Phone, Mail, Gift, HelpCircle
 } from 'lucide-react';
 import MobileLayout from '@/app/components/layout/MobileLayout';
 import { Card } from '@/app/components/ui/Card';
 import Button from '@/app/components/ui/Button';
-import { mockUsers } from '@/app/lib/mockData';
+import { mockUsers, siteInfo } from '@/app/lib/mockData';
 import { UserRole } from '@/app/lib/types';
 
 export default function ProfilePage() {
@@ -98,24 +98,31 @@ export default function ProfilePage() {
       <div className="px-4 mb-6">
         <h3 className="text-slate-800 font-medium mb-3">我的功能</h3>
         <Card className="divide-y divide-slate-100">
-          <Link href="/orders" className="flex items-center justify-between p-4">
+          <Link href="/user/orders" className="flex items-center justify-between p-4">
             <div className="flex items-center">
               <Ticket className="h-5 w-5 text-indigo-500 mr-3" />
               <span>我的订单</span>
             </div>
             <ChevronRight className="h-4 w-4 text-slate-400" />
           </Link>
-          <Link href="/favorites" className="flex items-center justify-between p-4">
+          <Link href="/user/favorites" className="flex items-center justify-between p-4">
             <div className="flex items-center">
               <Heart className="h-5 w-5 text-red-500 mr-3" />
               <span>我喜欢的电影</span>
             </div>
             <ChevronRight className="h-4 w-4 text-slate-400" />
           </Link>
-          <Link href="/history" className="flex items-center justify-between p-4">
+          <Link href="/user/history" className="flex items-center justify-between p-4">
             <div className="flex items-center">
               <History className="h-5 w-5 text-amber-500 mr-3" />
               <span>观影历史</span>
+            </div>
+            <ChevronRight className="h-4 w-4 text-slate-400" />
+          </Link>
+          <Link href="/user/faq" className="flex items-center justify-between p-4">
+            <div className="flex items-center">
+              <HelpCircle className="h-5 w-5 text-green-500 mr-3" />
+              <span>常见问题</span>
             </div>
             <ChevronRight className="h-4 w-4 text-slate-400" />
           </Link>
@@ -179,8 +186,8 @@ export default function ProfilePage() {
       
       {/* 底部版本信息 */}
       <div className="text-center p-4 text-xs text-slate-400">
-        <p>电影票务系统 v1.0.0</p>
-        <p className="mt-1">© 2025 保留所有权利</p>
+        <p>{siteInfo.name} v1.0.0</p>
+        <p className="mt-1">{siteInfo.copyright}</p>
       </div>
     </MobileLayout>
   );

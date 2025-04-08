@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Film, Users, Settings, User, UserRound, Shield } from 'lucide-react';
 import { useAppContext } from './lib/context/AppContext';
 import { UserRole } from './lib/types';
+import { defaultImages, siteInfo } from './lib/mockData';
 
 export default function Home() {
   const router = useRouter();
@@ -38,14 +39,14 @@ export default function Home() {
         <div className="flex justify-center mb-4">
           <div className="relative w-24 h-24">
             <Image
-              src="/images/logo.png"
+              src={defaultImages.logo}
               alt="Logo"
               fill
               className="object-contain"
             />
           </div>
         </div>
-        <h1 className="text-3xl font-bold text-slate-800">电影票务系统</h1>
+        <h1 className="text-3xl font-bold text-slate-800">{siteInfo.name}</h1>
         <p className="text-slate-500 mt-4 mb-2">演示选择</p>
         <p className="text-xs text-slate-400 mb-8">请选择要演示的角色类型</p>
       </div>
@@ -121,7 +122,7 @@ export default function Home() {
       </div>
       
       <footer className="mt-12 text-center text-xs text-slate-500">
-        <p>© 2025 电影票务系统. 保留所有权利。</p>
+        <p>{siteInfo.copyright}</p>
       </footer>
     </div>
   );

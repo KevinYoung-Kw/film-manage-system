@@ -5,7 +5,18 @@ export const defaultImages = {
   banner: '/images/default-banner.jpg',
   moviePoster: '/images/default-poster.jpg',
   avatar: '/images/default-avatar.jpg',
-  theater: '/images/default-theater.jpg'
+  theater: '/images/default-theater.jpg',
+  logo: '/images/logo.png'
+};
+
+// 网站信息
+export const siteInfo = {
+  name: '电影票务系统',
+  address: '中国某省某市某区某街道123号',
+  phone: '400-123-4567',
+  email: 'support@example.com',
+  copyright: '© 2025 电影票务系统',
+  workingHours: '09:00 - 22:00'
 };
 
 // 模拟电影数据
@@ -35,7 +46,8 @@ export const mockMovies: Movie[] = [
     description: "人类为抵御小行星的撞击，拯救地球，在月球部署了月盾计划。但由于意外，一名中国宇航员执行月盾计划时被困在了月球。",
     releaseDate: new Date("2023-07-29"),
     genre: ["喜剧", "科幻"],
-    rating: 7.8
+    rating: 7.8,
+    status: MovieStatus.SHOWING
   },
   {
     id: "movie3",
@@ -47,7 +59,8 @@ export const mockMovies: Movie[] = [
     description: "盛唐时期，诗人高适与李白的传奇友谊，以及他们在大唐盛世的奇异冒险。",
     releaseDate: new Date("2023-07-08"),
     genre: ["动画", "历史", "奇幻"],
-    rating: 8.3
+    rating: 8.3,
+    status: MovieStatus.SHOWING
   },
   {
     id: "movie4",
@@ -59,7 +72,8 @@ export const mockMovies: Movie[] = [
     description: "本片聚焦于美国物理学家J·罗伯特·奥本海默的故事，他被称为'原子弹之父'。",
     releaseDate: new Date("2023-08-30"),
     genre: ["传记", "历史", "剧情"],
-    rating: 9.0
+    rating: 9.0,
+    status: MovieStatus.SHOWING
   },
   {
     id: "movie5",
@@ -71,7 +85,34 @@ export const mockMovies: Movie[] = [
     description: "这是一部犯罪题材电影，讲述了一桩看似简单的自杀案引出的一系列黑幕，以及主人公与幕后黑手斗智斗勇的故事。",
     releaseDate: new Date("2023-09-28"),
     genre: ["犯罪", "悬疑", "剧情"],
-    rating: 7.5
+    rating: 7.5,
+    status: MovieStatus.COMING_SOON
+  },
+  {
+    id: "movie6",
+    title: "孤注一掷",
+    poster: "https://img1.doubanio.com/view/photo/s_ratio_poster/public/p2895465725.webp", 
+    duration: 137,
+    director: "申奥",
+    actors: ["张艺兴", "王戈", "刘浩存", "范伟"],
+    description: "一场意外中，建筑工人潘生意外坠楼，为了给女儿治病，他铤而走险踏上了一条危险的路。",
+    releaseDate: new Date("2023-08-18"),
+    genre: ["犯罪", "剧情"],
+    rating: 7.3,
+    status: MovieStatus.COMING_SOON
+  },
+  {
+    id: "movie7",
+    title: "封神第一部",
+    poster: "https://img2.doubanio.com/view/photo/s_ratio_poster/public/p2889966987.webp",
+    duration: 148,
+    director: "乌尔善",
+    actors: ["费翔", "李雪健", "黄渤", "于适"],
+    description: "商王殷寿与狐妖妲己勾结，暴虐无道，引发天谴。姬昌率领的西周和阐教弟子妄图讨伐商王，却遭到以申公豹为首的截教弟子的阻挠。",
+    releaseDate: new Date("2023-07-20"),
+    genre: ["奇幻", "动作", "古装"],
+    rating: 7.0,
+    status: MovieStatus.OFF_SHOWING
   }
 ];
 
@@ -384,4 +425,131 @@ export const mockStaffSchedules: StaffSchedule[] = [
     notes: "周末班",
     createdAt: new Date("2024-04-20T10:00:00")
   }
-]; 
+];
+
+// 轮播图数据
+export const mockBanners = [
+  {
+    id: "banner1",
+    imageUrl: "https://img1.doubanio.com/view/photo/s_ratio_poster/public/p2895465725.webp",
+    title: "孤注一掷",
+    description: "一场意外中，建筑工人潘生意外坠楼，为了给女儿治病，他铤而走险踏上了一条危险的路。",
+    link: "/movies/movie6"
+  },
+  {
+    id: "banner2",
+    imageUrl: "https://img9.doubanio.com/view/photo/s_ratio_poster/public/p2895145309.webp",
+    title: "奥本海默",
+    description: "本片聚焦于美国物理学家J·罗伯特·奥本海默的故事，他被称为'原子弹之父'。",
+    link: "/movies/movie4"
+  },
+  {
+    id: "banner3",
+    imageUrl: defaultImages.banner,
+    title: "会员日特惠",
+    description: "每周二会员日，全场电影票8折优惠",
+    link: "/promotions/members-day"
+  }
+];
+
+// 公告消息
+export const mockAnnouncements = [
+  {
+    id: "announcement1",
+    title: "五一特别活动",
+    content: "五一期间，购买任意电影票即可参与抽奖，有机会获得电影周边礼品。",
+    date: new Date("2024-04-25")
+  },
+  {
+    id: "announcement2",
+    title: "系统维护通知",
+    content: "系统将于2024年5月3日凌晨2:00-4:00进行维护升级，期间可能无法正常访问，请提前安排您的购票时间。",
+    date: new Date("2024-04-28")
+  },
+  {
+    id: "announcement3",
+    title: "新增取票方式",
+    content: "现在可以通过微信小程序直接出示电子票入场，无需再到自助机取票。",
+    date: new Date("2024-04-20")
+  }
+];
+
+// 常见问题
+export const mockFAQs = [
+  {
+    id: "faq1",
+    question: "如何退改签电影票？",
+    answer: "已支付的电影票，开场前2小时可申请退票，收取票价的10%作为手续费；开场前30分钟至2小时之间可申请退票，收取票价的30%作为手续费；开场前30分钟内不支持退票。"
+  },
+  {
+    id: "faq2",
+    question: "如何使用优惠券？",
+    answer: "在选座确认订单页面，可以选择使用符合条件的优惠券。每个订单仅限使用一张优惠券，且不与其他优惠活动同时使用。"
+  },
+  {
+    id: "faq3",
+    question: "电影院内可以带食物吗？",
+    answer: "您可以携带影院出售的食品进入影厅。外带食品需在指定区域食用，不能带入影厅。"
+  },
+  {
+    id: "faq4",
+    question: "儿童/老人票如何购买？",
+    answer: "儿童票适用于身高1.3米以下的儿童，老人票适用于65岁以上老人，购票时选择对应票种，入场时可能需要提供相关证件。"
+  }
+];
+
+// 支付方式
+export const mockPaymentMethods = [
+  {
+    id: "payment1",
+    name: "微信支付",
+    icon: "/images/payment/wechat.png",
+    code: "wechat"
+  },
+  {
+    id: "payment2",
+    name: "支付宝",
+    icon: "/images/payment/alipay.png",
+    code: "alipay"
+  },
+  {
+    id: "payment3",
+    name: "银联卡",
+    icon: "/images/payment/unionpay.png",
+    code: "unionpay"
+  },
+  {
+    id: "payment4",
+    name: "会员卡支付",
+    icon: "/images/payment/membercard.png",
+    code: "membercard"
+  }
+];
+
+// 模拟管理员统计数据
+export const mockAdminStats = {
+  totalSales: 15280,
+  ticketsSold: 187,
+  averageOccupancy: 68.5,
+  popularMovie: "流浪地球2",
+  popularShowtime: "周末晚间",
+  dailyRevenue: [
+    { date: "04-25", revenue: 2480 },
+    { date: "04-26", revenue: 1850 },
+    { date: "04-27", revenue: 3200 },
+    { date: "04-28", revenue: 2940 },
+    { date: "04-29", revenue: 2430 },
+    { date: "04-30", revenue: 2380 }
+  ],
+  ticketTypeDistribution: [
+    { type: "普通票", percentage: 65 },
+    { type: "学生票", percentage: 20 },
+    { type: "老人票", percentage: 10 },
+    { type: "儿童票", percentage: 5 }
+  ],
+  theaterOccupancy: [
+    { name: "1号厅", occupancy: 78 },
+    { name: "2号厅", occupancy: 62 },
+    { name: "3号厅", occupancy: 45 }
+  ]
+}; 

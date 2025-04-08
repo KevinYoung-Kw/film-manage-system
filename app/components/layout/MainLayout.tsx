@@ -291,7 +291,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
       )}
       
       {/* 安全区域 - 防止内容被底部导航遮挡 */}
-      {showBottomNav && <div className="h-16"></div>}
+      {showBottomNav}
     </div>
   );
 };

@@ -32,7 +32,7 @@ export default function MoviesManagementPage() {
 
   // 处理输入变化
   const handleInputChange = (field: string, value: any) => {
-    setEditedMovie(prev => ({
+    setEditedMovie((prev: any) => ({
       ...prev,
       [field]: value
     }));
@@ -41,7 +41,7 @@ export default function MoviesManagementPage() {
   // 处理多值字段的变化（如genre, actors）
   const handleArrayInputChange = (field: string, value: string) => {
     const array = value.split(',').map(item => item.trim()).filter(item => item !== '');
-    setEditedMovie(prev => ({
+    setEditedMovie((prev: any) => ({
       ...prev,
       [field]: array
     }));
