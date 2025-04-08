@@ -167,7 +167,7 @@ export const mockMovies: Movie[] = [
     director: "陈饭王",
     actors: ["李大厨", "王师傅", "张创新", "周味道"],
     description: "讲述华南农业大学芷园饭堂如何凭借独特的烹饪技艺和创新菜品，在全校厨艺大比拼中次次夺得第一的故事。从普通食堂到美食传奇的蜕变过程中，芷园团队克服重重困难，用美食温暖人心，最终成为校园文化的重要标志。",
-    releaseDate: new Date("2025-04-20"),
+    releaseDate: new Date("2025-04-20T00:00:00Z"),
     genre: ["美食", "励志", "纪实"],
     rating: 9.3,
     status: MovieStatus.COMING_SOON
@@ -180,8 +180,8 @@ export const mockMovies: Movie[] = [
     duration: 115,
     director: "张情感",
     actors: ["王法学", "李计算", "赵校园", "钱青春"],
-    description: "来自法学院的大四学生小王，在毕业前夕爱上了计算机专业的才女小李。为了追求心仪的姑娘，他每天横跨紫荆桥，从启林区奔向泰山区，用一系列浪漫而又略显笨拙的方式表达爱意。这是一个关于跨越专业鸿沟、勇敢追爱的青春故事。",
-    releaseDate: new Date("2025-05-01"),
+    description: "来自法学院的大四学生小王，在毕业前夕爱上了计算机学院的才女小李。为了追求心仪的姑娘，他每天横跨紫荆桥，从文科区奔向理工区，用一系列浪漫而又略显笨拙的方式表达爱意。这是一个关于跨越专业鸿沟、勇敢追爱的青春故事。",
+    releaseDate: new Date("2025-05-01T00:00:00Z"),
     genre: ["爱情", "青春", "校园"],
     rating: 8.9,
     status: MovieStatus.COMING_SOON

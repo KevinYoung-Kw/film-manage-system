@@ -138,7 +138,10 @@ export default function UserMovieDetail() {
                 {movie.genre.join(' / ')} | {movie.duration}分钟
               </p>
               <p className="text-white/70 text-xs mt-1">
-                {format(new Date(movie.releaseDate), 'yyyy年MM月dd日')}上映
+                {isValidDate(movie.releaseDate) ? 
+                  format(new Date(movie.releaseDate), 'yyyy年MM月dd日') : 
+                  '日期未知'
+                }上映
               </p>
             </div>
           </div>
@@ -181,7 +184,12 @@ export default function UserMovieDetail() {
           </div>
           <div className="flex">
             <div className="w-16 text-slate-500 text-sm">上映日期</div>
-            <div className="flex-1 text-sm">{format(new Date(movie.releaseDate), 'yyyy年MM月dd日')}</div>
+            <div className="flex-1 text-sm">
+              {isValidDate(movie.releaseDate) ? 
+                format(new Date(movie.releaseDate), 'yyyy年MM月dd日') : 
+                '日期未知'
+              }
+            </div>
           </div>
         </div>
       </div>
@@ -205,12 +213,12 @@ export default function UserMovieDetail() {
               if (!theater) return null;
               
               // 安全地处理日期
-              const startDate = new Date(showtime.startTime);
-              const endDate = new Date(showtime.endTime);
+              const startDate = showtime.startTime ? new Date(showtime.startTime) : null;
+              const endDate = showtime.endTime ? new Date(showtime.endTime) : null;
               
-              const startTime = isValidDate(startDate) ? format(startDate, 'HH:mm') : '--:--';
-              const endTime = isValidDate(endDate) ? format(endDate, 'HH:mm') : '--:--';
-              const date = isValidDate(startDate) ? format(startDate, 'MM月dd日') : '';
+              const startTime = startDate && isValidDate(startDate) ? format(startDate, 'HH:mm') : '--:--';
+              const endTime = endDate && isValidDate(endDate) ? format(endDate, 'HH:mm') : '--:--';
+              const date = startDate && isValidDate(startDate) ? format(startDate, 'MM月dd日') : '';
               
               return (
                 <Card key={showtime.id} className="p-3">
@@ -240,5 +248,18 @@ export default function UserMovieDetail() {
 
 // 辅助函数：检查日期是否有效
 function isValidDate(date: any): boolean {
-  return date instanceof Date && !isNaN(date.getTime());
+  if (!date) return false;
+  
+  // 如果已经是Date对象
+  if (date instanceof Date) {
+    return !isNaN(date.getTime());
+  }
+  
+  // 如果是字符串或数字，尝试创建Date对象
+  try {
+    const d = new Date(date);
+    return !isNaN(d.getTime());
+  } catch (e) {
+    return false;
+  }
 } 
