@@ -9,6 +9,7 @@ import { Card } from './ui/Card';
 import { Movie } from '../lib/types';
 import { defaultImages } from '../lib/mockData';
 import { userRoutes } from '../lib/utils/navigation';
+import { processImageUrl } from '../lib/services/dataService';
 
 interface MovieCardProps {
   movie: Movie;
@@ -31,8 +32,8 @@ const MovieCard: React.FC<MovieCardProps> = ({
     ? format(movie.releaseDate, 'yyyy-MM-dd')
     : '未知日期';
   
-  // 获取封面图片，优先使用webp格式，确保有兜底图
-  const posterSrc = movie.webpPoster || movie.poster || defaultImages.webpMoviePoster || defaultImages.moviePoster;
+  // 获取封面图片，使用processImageUrl确保有效路径
+  const posterSrc = processImageUrl(movie.webpPoster || movie.poster);
   
   // 确保所有需要的数据字段都存在
   const title = movie.title || '无标题电影';

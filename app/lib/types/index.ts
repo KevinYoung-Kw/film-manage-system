@@ -84,6 +84,10 @@ export interface Showtime {
   id: string;
   movieId: string;
   theaterId: string;
+  movieTitle?: string;     // 电影标题
+  moviePoster?: string;    // 电影海报
+  movieDuration?: number;  // 电影时长
+  theaterName?: string;    // 影厅名称
   startTime: Date;
   endTime: Date;
   price: Record<TicketType, number>; // 不同票价类型对应的价格
@@ -123,6 +127,11 @@ export interface Order {
   cancelledAt?: Date;
   refundedAt?: Date;
   checkedAt?: Date; // 检票时间
+  // 扩展属性 - 关联信息
+  movieTitle?: string;
+  theaterName?: string;
+  moviePoster?: string;
+  showtime?: Date;
 }
 
 // 工作人员操作类型

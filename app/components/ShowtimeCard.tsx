@@ -1,12 +1,14 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { format } from 'date-fns';
 import Link from 'next/link';
-import { Clock } from 'lucide-react';
+import { Clock, Film } from 'lucide-react';
 import { Card } from './ui/Card';
 import { Showtime, Movie, Theater, TicketType } from '../lib/types';
 import { zhCN } from 'date-fns/locale';
+import { defaultImages } from '../lib/mockData';
 
 interface ShowtimeCardProps {
   showtime: Showtime;
@@ -38,6 +40,9 @@ const ShowtimeCard: React.FC<ShowtimeCardProps> = ({
   // 检查场次是否已过期
   const now = new Date();
   const isExpired = new Date(showtime.startTime) < now;
+
+  // 选择最佳海报图片，优先使用webp格式
+  const posterSrc = movie.webpPoster || movie.poster || defaultImages.webpMoviePoster;
   
   return (
     <Card className={`p-3 ${className}`} withHover>
@@ -59,8 +64,18 @@ const ShowtimeCard: React.FC<ShowtimeCardProps> = ({
         </div>
       </div>
       
-      <div className="flex justify-between items-start mt-3">
-        <div>
+      <div className="flex items-center mt-3">
+        <div className="w-12 h-16 relative rounded overflow-hidden mr-2 flex-shrink-0">
+          <Image 
+            src={posterSrc}
+            alt={movie.title}
+            fill
+            className="object-cover"
+            unoptimized
+          />
+        </div>
+        
+        <div className="flex-1">
           <div className="text-sm font-medium">{theater.name}</div>
           {theater.equipment && theater.equipment.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1">
@@ -71,9 +86,9 @@ const ShowtimeCard: React.FC<ShowtimeCardProps> = ({
               ))}
             </div>
           )}
-        </div>
-        <div className="text-xs text-slate-500">
-          {date} {dayOfWeek}
+          <div className="text-xs text-slate-500 mt-1">
+            {date} {dayOfWeek}
+          </div>
         </div>
       </div>
       

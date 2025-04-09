@@ -5,7 +5,7 @@ import MobileLayout from '@/app/components/layout/MobileLayout';
 import MovieCard from '@/app/components/MovieCard';
 import TabGroup from '@/app/components/ui/TabGroup';
 import { Search } from 'lucide-react';
-import { MovieService } from '@/app/lib/services/dataService';
+import { MovieService } from '@/app/lib/services/movieService';
 import { Movie } from '@/app/lib/types';
 
 export default function UserMoviesPage() {
@@ -21,10 +21,19 @@ export default function UserMoviesPage() {
         setLoading(true);
         setError(null);
         
+        console.log('[电影列表][DEBUG] 开始获取电影数据，Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+        
+        // 直接使用MovieService.getAllMovies()方法获取电影数据
+        // 该方法内部使用了MovieFallbackService，优先从Supabase获取，失败时使用本地数据
         const moviesData = await MovieService.getAllMovies();
+        
+        console.log('[电影列表][DEBUG] 电影数据获取成功:', 
+          moviesData ? `获取到${moviesData.length}部电影` : '未获取到数据');
+        console.log('[电影列表][DEBUG] 首部电影数据示例:', moviesData[0]);
+        
         setMovies(moviesData);
       } catch (err) {
-        console.error('Failed to load movies:', err);
+        console.error('[电影列表][ERROR] 加载电影失败:', err);
         setError('无法加载电影列表，请稍后再试');
       } finally {
         setLoading(false);

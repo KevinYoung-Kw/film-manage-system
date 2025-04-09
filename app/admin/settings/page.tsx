@@ -4,11 +4,38 @@ import React, { useState, useEffect } from 'react';
 import { Settings, Bell, Moon, Globe, Shield, LogOut, ChevronRight, Users, DollarSign, BarChart2 } from 'lucide-react';
 import Link from 'next/link';
 import { useAppContext } from '@/app/lib/context/AppContext';
+import { useRouter } from 'next/navigation';
+import { UserService } from '@/app/lib/services/userService';
+import { AuthService } from '@/app/lib/services/authService';
 
 export default function SettingsPage() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const { darkMode, toggleDarkMode } = useAppContext(); 
+  const { darkMode, toggleDarkMode, currentUser, logout } = useAppContext(); 
   const [language, setLanguage] = useState('中文');
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
+
+  // 处理退出登录
+  const handleLogout = async () => {
+    if (!confirm('确定要退出登录吗？')) {
+      return;
+    }
+    
+    setIsLoading(true);
+    try {
+      await logout();
+      router.push('/login');
+    } catch (error) {
+      console.error('退出登录失败:', error);
+      alert('退出登录失败，请重试');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (!currentUser) {
+    return <div className="p-4 text-center">加载中...</div>;
+  }
 
   return (
     <div className="p-4">
@@ -22,11 +49,11 @@ export default function SettingsPage() {
         <h2 className="font-medium mb-4">账户信息</h2>
         <div className="flex items-center">
           <div className="h-16 w-16 bg-gray-200 rounded-full flex items-center justify-center mr-4">
-            <span className="text-2xl font-medium text-gray-600">管</span>
+            <span className="text-2xl font-medium text-gray-600">{currentUser.name[0]}</span>
           </div>
           <div>
-            <h3 className="font-medium">管理员</h3>
-            <p className="text-sm text-gray-500">admin@example.com</p>
+            <h3 className="font-medium">{currentUser.name}</h3>
+            <p className="text-sm text-gray-500">{currentUser.email}</p>
             <p className="text-xs text-gray-400 mt-1">管理员账户</p>
           </div>
         </div>
@@ -37,9 +64,9 @@ export default function SettingsPage() {
         <h2 className="font-medium mb-4">系统管理</h2>
         
         <div className="grid grid-cols-2 gap-4">
-          <Link href="/admin/users" className="flex flex-col items-center justify-center bg-indigo-50 text-indigo-600 p-4 rounded-lg">
+          <Link href="/admin/staff" className="flex flex-col items-center justify-center bg-indigo-50 text-indigo-600 p-4 rounded-lg">
             <Users size={24} className="mb-2" />
-            <span className="text-sm">用户管理</span>
+            <span className="text-sm">员工管理</span>
           </Link>
           
           <Link href="/admin/stats" className="flex flex-col items-center justify-center bg-blue-50 text-blue-600 p-4 rounded-lg">
@@ -148,9 +175,13 @@ export default function SettingsPage() {
       </div>
       
       {/* 退出登录 */}
-      <button className="w-full bg-red-50 text-red-600 rounded-lg p-4 flex items-center justify-center">
+      <button 
+        className="w-full bg-red-50 text-red-600 rounded-lg p-4 flex items-center justify-center"
+        onClick={handleLogout}
+        disabled={isLoading}
+      >
         <LogOut size={18} className="mr-2" />
-        <span>退出登录</span>
+        <span>{isLoading ? '退出中...' : '退出登录'}</span>
       </button>
     </div>
   );

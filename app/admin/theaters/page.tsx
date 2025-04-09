@@ -2,12 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { Plus, Monitor, Layout, Settings, X, Grid, Save, Check, Wand2 } from 'lucide-react';
-import { useAppContext } from '@/app/lib/context/AppContext';
 import { Theater } from '@/app/lib/types';
-import { TheaterService } from '@/app/lib/services/dataService';
+import { TheaterService } from '@/app/lib/services/theaterService';
 
 export default function TheatersManagementPage() {
-  const { theaters, updateTheater, updateTheaterLayout, addTheater } = useAppContext();
+  const [theaters, setTheaters] = useState<Theater[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showSeatLayoutModal, setShowSeatLayoutModal] = useState(false);
   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
@@ -20,6 +20,24 @@ export default function TheatersManagementPage() {
   const [equipments, setEquipments] = useState<Array<any>>([]);
   const [showEquipmentDetailModal, setShowEquipmentDetailModal] = useState(false);
   const [currentEquipment, setCurrentEquipment] = useState<any>(null);
+  
+  // 加载影厅数据
+  const loadTheaters = async () => {
+    setIsLoading(true);
+    try {
+      const theaters = await TheaterService.getAllTheaters();
+      setTheaters(theaters);
+    } catch (error) {
+      console.error('加载影厅数据失败:', error);
+      alert('加载影厅数据失败，请刷新页面重试');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  useEffect(() => {
+    loadTheaters();
+  }, []);
   
   // 新影厅表单数据
   const [newTheater, setNewTheater] = useState({
@@ -56,14 +74,19 @@ export default function TheatersManagementPage() {
       : [];
     
     try {
-      // 调用 AppContext 方法添加影厅
-      await addTheater({
+      setIsLoading(true);
+      
+      // 调用 TheaterService 方法添加影厅
+      await TheaterService.createTheater({
         name: newTheater.name,
         rows: newTheater.rows,
         columns: newTheater.columns,
         totalSeats: newTheater.rows * newTheater.columns, // 计算总座位数
         equipment: equipmentList
       });
+      
+      // 重新加载影厅列表
+      await loadTheaters();
       
       // 重置表单并关闭模态框
       setNewTheater({
@@ -81,6 +104,9 @@ export default function TheatersManagementPage() {
       }, 1500);
     } catch (error) {
       console.error('添加影厅失败:', error);
+      alert('添加影厅失败，请重试');
+    } finally {
+      setIsLoading(false);
     }
   };
   
@@ -119,12 +145,13 @@ export default function TheatersManagementPage() {
     setCurrentTheater(theater);
     
     try {
+      setIsLoading(true);
       // 先尝试从服务层获取保存的座位布局
-      const savedLayout = await TheaterService.getSeatLayoutTypes(theater.id);
+      const savedLayout = await TheaterService.getTheaterSeatLayout(theater.id);
       
-      if (savedLayout && savedLayout.length > 0) {
+      if (savedLayout && savedLayout.layout.length > 0) {
         // 使用已保存的布局
-        setSeatLayout(savedLayout);
+        setSeatLayout(savedLayout.layout);
       } else {
         // 没有保存过布局，使用生成的默认布局
         setSeatLayout(generateSeatLayout(theater));
@@ -136,6 +163,8 @@ export default function TheatersManagementPage() {
       // 出错时使用默认生成的布局
       setSeatLayout(generateSeatLayout(theater));
       setShowSeatLayoutModal(true);
+    } finally {
+      setIsLoading(false);
     }
   };
   
@@ -197,11 +226,19 @@ export default function TheatersManagementPage() {
     // 提取设备名称
     const equipmentNames = equipments.map(equipment => equipment.name).filter(Boolean);
     
-    // 使用 updateTheater 更新影厅设备信息
     try {
-      await updateTheater(currentTheater.id, {
+      setIsLoading(true);
+      // 使用 TheaterService 更新影厅设备信息
+      await TheaterService.updateTheater(currentTheater.id, {
         equipment: equipmentNames
       });
+      
+      // 更新本地数据
+      setTheaters(theaters.map(theater => 
+        theater.id === currentTheater.id 
+          ? {...theater, equipment: equipmentNames}
+          : theater
+      ));
       
       setSaveSuccess(true);
       
@@ -211,6 +248,9 @@ export default function TheatersManagementPage() {
       }, 1500);
     } catch (error) {
       console.error('保存设备信息失败:', error);
+      alert('保存设备信息失败，请重试');
+    } finally {
+      setIsLoading(false);
     }
   };
   
@@ -248,47 +288,45 @@ export default function TheatersManagementPage() {
     if (editMode !== 'batch') return;
     
     setIsDrawing(true);
-    toggleSeatType(rowIndex, colIndex);
+    
+    // 设置选中座位类型
+    const newLayout = [...seatLayout];
+    newLayout[rowIndex][colIndex] = selectedSeatType;
+    setSeatLayout(newLayout);
   };
   
   // 鼠标移动事件处理
   const handleMouseOver = (rowIndex: number, colIndex: number) => {
     if (!isDrawing || editMode !== 'batch') return;
     
-    toggleSeatType(rowIndex, colIndex);
+    // 绘制模式：设置为选中类型
+    const newLayout = [...seatLayout];
+    newLayout[rowIndex][colIndex] = selectedSeatType;
+    setSeatLayout(newLayout);
   };
   
-  // 鼠标松开事件处理
+  // 鼠标抬起事件处理
   const handleMouseUp = () => {
     setIsDrawing(false);
   };
   
-  // 批量设置座位
+  // 批量应用座位类型
   const handleBatchUpdate = (type: string) => {
-    const newLayout = seatLayout.map(row => 
-      row.map(() => type)
-    );
-    setSeatLayout(newLayout);
+    // 更新选中的座位类型
+    setSelectedSeatType(type);
+    
+    // 切换到批量编辑模式
+    setEditMode('batch');
   };
   
   // 保存座位布局
   const handleSaveSeatLayout = async () => {
     if (!currentTheater) return;
     
-    // 计算座位总数（不包括空位）
-    let totalSeats = 0;
-    seatLayout.forEach(row => {
-      row.forEach(type => {
-        if (type !== 'empty') totalSeats++;
-      });
-    });
-    
     try {
-      // 先更新行列数
-      await updateTheaterLayout(currentTheater.id, seatLayout.length, seatLayout[0]?.length || 0);
-      
-      // 然后调用服务层方法保存详细的座位布局信息
-      await TheaterService.updateSeatLayoutTypes(currentTheater.id, seatLayout);
+      setIsLoading(true);
+      // 使用 TheaterService 更新座位布局
+      await TheaterService.updateSeatLayout(currentTheater.id, seatLayout);
       
       setSaveSuccess(true);
       
@@ -298,75 +336,106 @@ export default function TheatersManagementPage() {
       }, 1500);
     } catch (error) {
       console.error('保存座位布局失败:', error);
+      alert('保存座位布局失败，请重试');
+    } finally {
+      setIsLoading(false);
     }
   };
   
   return (
     <div className="p-4">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">影厅管理</h1>
-        <button 
-          className="flex items-center bg-indigo-600 text-white px-3 py-2 rounded-md text-sm"
-          onClick={() => setShowAddModal(true)}
-        >
-          <Plus size={16} className="mr-1" /> 新增
-        </button>
-      </div>
-      
-      {/* 保存成功提示 */}
-      {saveSuccess && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded flex items-center z-50">
-          <Check size={16} className="mr-2" />
-          保存成功
+      <div className="container mx-auto px-4 py-6">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-semibold">影厅管理</h1>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-md flex items-center"
+          >
+            <Plus size={16} className="mr-1" /> 添加影厅
+          </button>
         </div>
-      )}
-      
-      {/* 影厅列表 */}
-      <div className="grid gap-4">
-        {theaters.map(theater => (
-          <div key={theater.id} className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="p-4">
-              <div className="flex justify-between items-start">
-                <h3 className="font-medium text-lg">{theater.name}</h3>
-                <div className="flex space-x-2">
-                  <button 
-                    className="p-1 bg-indigo-50 text-indigo-600 rounded-md hover:bg-indigo-100 flex items-center"
-                    onClick={() => handleViewSeatLayout(theater)}
-                  >
-                    <Layout size={16} className="mr-1" />
-                    <span className="text-xs">座位布局</span>
-                  </button>
-                  <button 
-                    className="p-1 bg-amber-50 text-amber-600 rounded-md hover:bg-amber-100 flex items-center"
-                    onClick={() => handleManageEquipment(theater)}
-                  >
-                    <Monitor size={16} className="mr-1" />
-                    <span className="text-xs">设备管理</span>
-                  </button>
-                </div>
-              </div>
-              <div className="mt-3 text-sm">
-                <div className="flex justify-between text-gray-500 mb-1">
-                  <span>总座位数: {theater.totalSeats}</span>
-                  <span>{theater.rows} 排 × {theater.columns} 列</span>
-                </div>
-                <div className="flex items-center mt-2">
-                  <Settings size={14} className="text-gray-400 mr-2" />
-                  <div className="flex flex-wrap gap-1">
-                    {theater.equipment.map((equipment, index) => (
-                      <span key={index} className="inline-block bg-gray-100 text-gray-700 px-2 py-1 rounded-full text-xs">
-                        {equipment}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
+        
+        {saveSuccess && (
+          <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded flex items-center z-50">
+            <Check size={16} className="mr-2" />
+            保存成功
           </div>
-        ))}
+        )}
+        
+        {isLoading ? (
+          <div className="text-center py-10">
+            <div className="animate-spin h-10 w-10 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto"></div>
+            <p className="mt-3 text-slate-500">加载中...</p>
+          </div>
+        ) : theaters.length === 0 ? (
+          <div className="text-center py-10 bg-white rounded-lg shadow">
+            <p className="text-slate-500">暂无影厅数据，请添加新影厅</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {theaters.map((theater) => (
+              <div
+                key={theater.id}
+                className="bg-white rounded-lg shadow hover:shadow-md transition-shadow"
+              >
+                <div className="p-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-semibold">{theater.name}</h2>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleViewSeatLayout(theater)}
+                        className="p-2 bg-indigo-50 text-indigo-600 rounded-md hover:bg-indigo-100"
+                        title="座位布局"
+                      >
+                        <Grid size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleManageEquipment(theater)}
+                        className="p-2 bg-indigo-50 text-indigo-600 rounded-md hover:bg-indigo-100"
+                        title="设备管理"
+                      >
+                        <Settings size={16} />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-slate-500">总座位数</span>
+                      <span className="text-sm font-medium">{theater.totalSeats}个</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-slate-500">座位排列</span>
+                      <span className="text-sm font-medium">{theater.rows} 排 × {theater.columns} 列</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-slate-500">设备配置</span>
+                      <span className="text-sm font-medium">{theater.equipment?.length || 0}种</span>
+                    </div>
+                  </div>
+                  
+                  {theater.equipment && theater.equipment.length > 0 && (
+                    <div className="mt-4">
+                      <h3 className="text-sm font-medium text-slate-700 mb-2">设备列表</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {theater.equipment.map((item, index) => (
+                          <span
+                            key={index}
+                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800"
+                          >
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       
-      {/* 新增影厅模态框 */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
@@ -448,7 +517,6 @@ export default function TheatersManagementPage() {
         </div>
       )}
       
-      {/* 座位布局模态框 */}
       {showSeatLayoutModal && currentTheater && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
              onMouseUp={handleMouseUp}>
@@ -463,7 +531,6 @@ export default function TheatersManagementPage() {
               </button>
             </div>
             <div className="p-4">
-              {/* 编辑模式切换 */}
               <div className="mb-4 flex justify-between items-center border-b pb-4">
                 <div className="flex items-center space-x-3">
                   <span className="text-sm font-medium">编辑模式:</span>
@@ -483,7 +550,6 @@ export default function TheatersManagementPage() {
                   </div>
                 </div>
                 
-                {/* 批量操作按钮 */}
                 <div className="flex space-x-2">
                   <button 
                     className="p-1 bg-indigo-50 text-indigo-600 rounded-md hover:bg-indigo-100 flex items-center text-xs"
@@ -500,7 +566,6 @@ export default function TheatersManagementPage() {
                 </div>
               </div>
               
-              {/* 座位类型选择器 - 仅在批量编辑模式显示 */}
               {editMode === 'batch' && (
                 <div className="mb-4 p-3 bg-gray-50 rounded-md">
                   <div className="text-sm font-medium mb-2">选择座位类型:</div>
@@ -526,7 +591,6 @@ export default function TheatersManagementPage() {
                 </div>
               )}
               
-              {/* 座位图例 */}
               {editMode === 'single' && (
                 <div className="mb-4 text-sm text-gray-500 p-3 bg-gray-50 rounded-md">
                   <div className="text-sm font-medium mb-2">座位类型说明:</div>
@@ -558,7 +622,6 @@ export default function TheatersManagementPage() {
                 </div>
               )}
               
-              {/* 座位布局 */}
               <div className="mb-8 overflow-x-auto bg-gray-50 p-4 rounded-md">
                 <div className="w-full h-6 bg-slate-200 rounded-md mb-6 flex items-center justify-center text-sm text-slate-600">
                   屏幕
@@ -599,7 +662,6 @@ export default function TheatersManagementPage() {
         </div>
       )}
       
-      {/* 设备管理模态框 */}
       {showEquipmentModal && currentTheater && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg w-full max-w-3xl mx-4 max-h-[90vh] overflow-y-auto">
@@ -623,7 +685,6 @@ export default function TheatersManagementPage() {
                 </button>
               </div>
               
-              {/* 设备列表表格 */}
               <div className="overflow-x-auto bg-white rounded-lg shadow mb-4">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
@@ -709,7 +770,6 @@ export default function TheatersManagementPage() {
         </div>
       )}
       
-      {/* 设备详情模态框 */}
       {showEquipmentDetailModal && currentEquipment && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
@@ -793,7 +853,6 @@ export default function TheatersManagementPage() {
                     type="button"
                     className="px-4 py-2 bg-indigo-600 text-white rounded-md"
                     onClick={() => {
-                      // 更新设备信息
                       setEquipments(equipments.map(equip => 
                         equip.id === currentEquipment.id ? currentEquipment : equip
                       ));
