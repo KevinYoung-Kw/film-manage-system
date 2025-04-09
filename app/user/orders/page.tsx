@@ -13,6 +13,7 @@ import { Order, OrderStatus, TicketStatus } from '@/app/lib/types';
 import { useAppContext } from '@/app/lib/context/AppContext';
 import { defaultImages } from '@/app/lib/mockData';
 import { processImageUrl } from '@/app/lib/services/dataService';
+import { MovieService } from '@/app/lib/services/movieService';
 
 // 扩展Order类型以包含前端需要的额外数据
 interface ExtendedOrder extends Order {
@@ -414,6 +415,61 @@ interface OrderCardProps {
 }
 
 const OrderCard: React.FC<OrderCardProps> = ({ order, onCancel }) => {
+  const [posterUrl, setPosterUrl] = useState<string>('');
+  
+  // 获取电影封面
+  useEffect(() => {
+    async function fetchMoviePoster() {
+      try {
+        let poster = '';
+        
+        // 优先使用直接的电影对象中的海报
+        if (order.movie?.poster || order.movie?.webpPoster) {
+          if (order.movie.webpPoster) poster = order.movie.webpPoster;
+          else if (order.movie.poster) poster = order.movie.poster;
+        }
+        
+        // 然后尝试订单扩展字段中的海报URL
+        if (!poster && order.moviePoster) {
+          poster = order.moviePoster;
+        }
+        
+        // 如果是默认海报，尝试从MovieService获取正确的海报
+        if (!poster || poster === '/images/default-poster.jpg' || poster.includes('default-poster')) {
+          try {
+            // 从showtimeId获取电影信息
+            if (order.showtimeId) {
+              const { ShowtimeService } = await import('@/app/lib/services/showtimeService');
+              const showtime = await ShowtimeService.getShowtimeById(order.showtimeId);
+              
+              if (showtime && showtime.movieId) {
+                const movie = await MovieService.getMovieById(showtime.movieId);
+                if (movie && (movie.poster || movie.webpPoster)) {
+                  poster = movie.webpPoster || movie.poster;
+                }
+              }
+            }
+          } catch (err) {
+            console.error('获取电影海报失败:', err);
+          }
+        }
+        
+        // 如果仍然没有获取到海报，使用默认图片
+        if (!poster) {
+          poster = defaultImages.moviePoster;
+        }
+        
+        // 使用processImageUrl处理图片路径
+        setPosterUrl(processImageUrl(poster));
+      } catch (error) {
+        console.error('处理电影海报错误:', error);
+        setPosterUrl(processImageUrl(defaultImages.moviePoster));
+      }
+    }
+    
+    fetchMoviePoster();
+  }, [order]);
+  
   // 格式化时间
   const formattedTime = (() => {
     try {
@@ -569,29 +625,6 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onCancel }) => {
     return '未知电影';
   })();
   
-  const moviePoster = (() => {
-    let posterUrl = '';
-    
-    // 优先使用直接的电影对象中的海报
-    if (order.movie) {
-      if (order.movie.webpPoster) posterUrl = order.movie.webpPoster;
-      else if (order.movie.poster) posterUrl = order.movie.poster;
-    }
-    
-    // 然后尝试订单扩展字段中的海报URL
-    if (!posterUrl && order.moviePoster) {
-      posterUrl = order.moviePoster;
-    }
-    
-    // 如果没有获取到海报，使用默认图片
-    if (!posterUrl) {
-      posterUrl = defaultImages.moviePoster;
-    }
-    
-    // 使用processImageUrl处理图片路径
-    return processImageUrl(posterUrl);
-  })();
-  
   return (
     <Link href={`/user/orders/${order.id}`}>
       <Card className="overflow-hidden hover:shadow-md transition-shadow">
@@ -614,7 +647,7 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onCancel }) => {
         <div className="flex p-3">
           <div className="w-20 h-28 relative flex-shrink-0 rounded overflow-hidden">
             <Image
-              src={moviePoster}
+              src={posterUrl || processImageUrl(defaultImages.moviePoster)}
               alt={movieTitle}
               fill
               className="object-cover"

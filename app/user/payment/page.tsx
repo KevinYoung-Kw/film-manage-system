@@ -11,8 +11,10 @@ import { CreditCard, AlertCircle, Check, X } from 'lucide-react';
 import { mockShowtimes, mockMovies, mockTheaters, defaultImages } from '@/app/lib/mockData';
 import { OrderStatus, TicketType } from '@/app/lib/types';
 import { userRoutes } from '@/app/lib/utils/navigation';
-import { PaymentMethod, PaymentStatus } from '@services/paymentService';
 import { useAppContext } from '@/app/lib/context/AppContext';
+
+// 从正确的路径导入PaymentService
+import { PaymentMethod, PaymentStatus } from '@/app/lib/services/paymentService';
 
 // 创建一个使用 useSearchParams 的组件，这样可以在 Suspense 边界中使用它
 function PaymentContent() {
@@ -176,7 +178,14 @@ function PaymentContent() {
   
   // 自定义购票流程，不依赖AppContext的createOrder
   const handlePurchase = async () => {
-    if (isLoading || !showtime || !currentUser) return;
+    if (isLoading || !showtime || !currentUser) {
+      if (!currentUser) {
+        setPaymentError('请先登录再进行支付');
+        setPaymentStatus(PaymentStatus.FAILED);
+        return;
+      }
+      return;
+    }
     
     setIsLoading(true);
     setPaymentStatus(PaymentStatus.PROCESSING);
@@ -188,9 +197,39 @@ function PaymentContent() {
         userId: currentUser.id
       });
       
+      // 检查localStorage中是否有session并验证有效性
+      const sessionStr = localStorage.getItem('session');
+      if (!sessionStr) {
+        throw new Error('用户未登录或会话已过期，请重新登录');
+      }
+      
+      // 验证session结构
+      let session;
+      try {
+        session = JSON.parse(sessionStr);
+        if (!session || !session.user_id || !session.role) {
+          // 删除无效的session
+          localStorage.removeItem('session');
+          throw new Error('登录会话已损坏，请重新登录');
+        }
+      } catch (e) {
+        localStorage.removeItem('session');
+        throw new Error('登录会话无效，请重新登录');
+      }
+      
+      // 导入身份验证服务
+      const { AuthService } = await import('@/app/lib/services/authService');
+      
+      // 验证用户会话是否仍然有效
+      const currentUserCheck = await AuthService.getCurrentUser();
+      if (!currentUserCheck) {
+        // 如果getCurrentUser返回null，说明会话已过期
+        localStorage.removeItem('session');
+        throw new Error('您的登录状态已过期，请重新登录后再试');
+      }
+      
       // 直接使用OrderService创建订单
-      // 为此我们需要导入OrderService
-      const { OrderService } = await import('@/app/lib/services/dataService');
+      const { OrderService } = await import('@/app/lib/services/orderService');
       
       // 如果已有订单ID，则更新订单而不是创建新订单
       let targetOrderId = orderId;
@@ -201,27 +240,42 @@ function PaymentContent() {
           userId: currentUser.id,
           showtimeId: showtime.id,
           seats: selectedSeats,
-          ticketType: TicketType.NORMAL,
-          totalPrice: selectedSeats.length * showtime.price[TicketType.NORMAL],
-          status: OrderStatus.PENDING
+          ticketType: TicketType.NORMAL
         };
         
         console.log("准备创建订单:", orderData);
         
         // 创建订单
-        const newOrder = await OrderService.createOrder(orderData);
-        console.log("订单创建成功:", newOrder);
-        
-        // 设置订单ID
-        targetOrderId = newOrder.id;
-        setOrderId(targetOrderId);
+        try {
+          const newOrder = await OrderService.createOrder(orderData);
+          console.log("订单创建成功:", newOrder);
+          
+          // 设置订单ID
+          targetOrderId = newOrder.id;
+          setOrderId(targetOrderId);
+        } catch (orderError: any) {
+          console.error("创建订单失败:", orderError);
+          
+          // 如果是权限错误，可能是用户会话已过期
+          if (orderError.message && (
+              orderError.message.includes('permission denied') || 
+              orderError.message.includes('JWT') ||
+              orderError.message.includes('权限')
+          )) {
+            // 清除会话状态
+            localStorage.removeItem('session');
+            throw new Error('您的登录状态已过期，请重新登录后再试');
+          } else {
+            throw orderError;
+          }
+        }
       } else {
         console.log("使用现有订单:", targetOrderId);
       }
       
       // 模拟支付结果
       const paymentResult = {
-        status: PaymentStatus.SUCCESS,
+        status: PaymentStatus.COMPLETED,
         message: '支付成功',
         transactionId: 'txn_' + Date.now(),
         timestamp: new Date().toISOString(),
@@ -232,23 +286,65 @@ function PaymentContent() {
       setPaymentStatus(paymentResult.status);
       
       // 使用OrderService更新订单状态为已支付
-      if (paymentResult.status === PaymentStatus.SUCCESS && targetOrderId) {
-        await OrderService.updateOrderStatus(targetOrderId, OrderStatus.PAID);
-        console.log("订单状态已更新为已支付");
-        
-        // 刷新上下文中的数据
-        await refreshData();
-        
-        // 立即跳转到成功页面，使用正确的订单ID
-        router.push(userRoutes.orderSuccess(targetOrderId));
+      if (paymentResult.status === PaymentStatus.COMPLETED && targetOrderId) {
+        try {
+          await OrderService.updateOrderStatus(targetOrderId, OrderStatus.PAID);
+          console.log("订单状态已更新为已支付");
+          
+          // 刷新上下文中的数据
+          await refreshData();
+          
+          // 立即跳转到成功页面，使用正确的订单ID
+          router.push(userRoutes.orderSuccess(targetOrderId));
+        } catch (updateError: any) {
+          console.error("更新订单状态失败:", updateError);
+          
+          // 检查是否是权限或会话问题
+          if (updateError.message && (
+            updateError.message.includes('permission denied') || 
+            updateError.message.includes('JWT') ||
+            updateError.message.includes('权限') ||
+            updateError.message.includes('登录')
+          )) {
+            localStorage.removeItem('session');
+            throw new Error('您的登录状态已过期，更新订单状态失败，请重新登录');
+          }
+          
+          // 如果更新失败但已创建订单，仍然算作支付成功，让用户可以查看订单
+          if (targetOrderId) {
+            router.push(userRoutes.orderDetail(targetOrderId));
+          } else {
+            throw updateError;
+          }
+        }
       }
       
       console.log("支付流程完成");
       
-    } catch (error) {
+    } catch (error: any) {
       console.error("支付流程错误:", error);
       setPaymentStatus(PaymentStatus.FAILED);
-      setPaymentError('支付处理过程中发生错误');
+      
+      // 设置更友好的错误信息
+      if (error.message) {
+        if (error.message.includes('登录') || error.message.includes('会话')) {
+          setPaymentError(error.message);
+          // 如果是登录问题，3秒后重定向到登录页面
+          setTimeout(() => {
+            router.push('/login');
+          }, 3000);
+        } else if (error.message.includes('permission denied')) {
+          setPaymentError('您没有创建订单的权限，可能是登录状态已过期，请重新登录');
+          // 如果是权限问题，3秒后重定向到登录页面
+          setTimeout(() => {
+            router.push('/login');
+          }, 3000);
+        } else {
+          setPaymentError('支付处理过程中发生错误: ' + error.message);
+        }
+      } else {
+        setPaymentError('支付处理过程中发生未知错误');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -454,7 +550,7 @@ function PaymentContent() {
         statusText = "支付处理中...";
         statusColor = "text-indigo-600";
         break;
-      case PaymentStatus.SUCCESS:
+      case PaymentStatus.COMPLETED:
         statusIcon = <Check className="w-12 h-12 text-green-500 mx-auto mb-2" />;
         statusText = "支付成功";
         statusColor = "text-green-600";
