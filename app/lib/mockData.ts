@@ -409,7 +409,7 @@ export const mockUsers: User[] = [
 // 模拟订单数据
 export const mockOrders: Order[] = [
   {
-    id: "order1",
+    id: "TK2504060001",
     userId: "customer1",
     showtimeId: "showtime1",
     seats: ["seat-theater1-5-6", "seat-theater1-5-7"],
@@ -420,7 +420,7 @@ export const mockOrders: Order[] = [
     paidAt: new Date("2025-04-05T14:35:00")
   },
   {
-    id: "order2",
+    id: "TK2504060028",
     userId: "customer2",
     showtimeId: "showtime3",
     seats: ["seat-theater2-3-5"],
@@ -431,7 +431,7 @@ export const mockOrders: Order[] = [
     paidAt: new Date("2025-04-06T09:20:00")
   },
   {
-    id: "order3",
+    id: "TK2504060073",
     userId: "customer1",
     showtimeId: "showtime5",
     seats: ["seat-theater1-4-6", "seat-theater1-4-7", "seat-theater1-4-8"],
@@ -447,7 +447,7 @@ export const mockStaffOperations: StaffOperation[] = [
   {
     id: "operation1",
     staffId: "staff1",
-    orderId: "order1",
+    orderId: "TK2504060001",
     showtimeId: "showtime1",
     type: StaffOperationType.SELL,
     details: JSON.stringify({
@@ -461,7 +461,7 @@ export const mockStaffOperations: StaffOperation[] = [
   {
     id: "operation2",
     staffId: "staff1",
-    orderId: "order2",
+    orderId: "TK2504060028",
     showtimeId: "showtime3",
     type: StaffOperationType.SELL,
     details: JSON.stringify({
@@ -475,19 +475,19 @@ export const mockStaffOperations: StaffOperation[] = [
   {
     id: "operation3",
     staffId: "staff1",
-    orderId: "order1",
+    orderId: "TK2504060001",
     showtimeId: "showtime1",
     type: StaffOperationType.CHECK,
     details: JSON.stringify({
-      checkTime: "2025-04-06T10:45:00",
+      checkTime: "2025-04-06T09:45:00",
       status: "success"
     }),
-    createdAt: new Date("2025-04-06T10:45:00")
+    createdAt: new Date("2025-04-06T09:45:00")
   },
   {
     id: "operation4",
     staffId: "staff1",
-    orderId: "order4",
+    orderId: "TK2504060073",
     showtimeId: "showtime2",
     type: StaffOperationType.REFUND,
     details: JSON.stringify({

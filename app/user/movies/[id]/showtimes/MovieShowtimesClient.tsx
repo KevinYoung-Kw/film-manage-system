@@ -48,6 +48,14 @@ export default function MovieShowtimesClient({ movie }: MovieShowtimesClientProp
         
         // 按日期分组场次数据
         const today = new Date();
+        today.setHours(0, 0, 0, 0); // 重置时间到当天的0点，便于比较
+        
+        // 筛选当前时间之后的场次
+        const validShowtimes = showtimes.filter(showtime => {
+          const showtimeDate = new Date(showtime.startTime);
+          return showtimeDate >= today;
+        });
+        
         const nextDays = Array.from({ length: 4 }, (_, i) => {
           const date = new Date();
           date.setDate(today.getDate() + i);
@@ -55,7 +63,7 @@ export default function MovieShowtimesClient({ movie }: MovieShowtimesClientProp
         });
         
         const groupedShowtimes = nextDays.map(day => {
-          const showtimesOnDay = showtimes
+          const showtimesOnDay = validShowtimes
             .filter(showtime => 
               isSameDay(new Date(showtime.startTime), day)
             )

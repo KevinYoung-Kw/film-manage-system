@@ -56,6 +56,16 @@ function PaymentContent() {
           return;
         }
         
+        // 检查场次是否已过期
+        const now = new Date();
+        const showtimeDate = new Date(targetShowtime.startTime);
+        
+        if (showtimeDate < now) {
+          alert('该场次已开始，无法支付');
+          router.push(userRoutes.orders);
+          return;
+        }
+        
         setShowtime(targetShowtime);
         
         // 如果是从订单页面过来的（没有seats参数），则从订单中获取座位信息
@@ -69,6 +79,7 @@ function PaymentContent() {
           if (pendingOrder) {
             seatArray = pendingOrder.seats;
             setSelectedSeats(pendingOrder.seats);
+            setOrderId(pendingOrder.id); // 保存原订单ID，后续用于更新而非创建新订单
           } else {
             router.push(userRoutes.movieList);
             return;
@@ -144,17 +155,9 @@ function PaymentContent() {
   
   // 根据支付状态进行路由跳转
   useEffect(() => {
-    if (paymentStatus === PaymentStatus.SUCCESS) {
-      // 成功后刷新数据
-      refreshData();
-      
-      // 短暂延迟后跳转到成功页面
-      const timer = setTimeout(() => {
-        router.push(userRoutes.orderSuccess(orderId || ''));
-      }, 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [paymentStatus, router, orderId, refreshData]);
+    // 支付成功的跳转逻辑已移到handlePurchase函数中直接处理
+    // 这里不再需要额外的跳转逻辑
+  }, [paymentStatus]);
   
   // 增加新的useEffect来监听selectedShowtime的变化
   useEffect(() => {
@@ -189,43 +192,55 @@ function PaymentContent() {
       // 为此我们需要导入OrderService
       const { OrderService } = await import('@/app/lib/services/dataService');
       
-      // 准备订单数据
-      const orderData = {
-        userId: currentUser.id,
-        showtimeId: showtime.id,
-        seats: selectedSeats,
-        ticketType: TicketType.NORMAL,
-        totalPrice: selectedSeats.length * showtime.price[TicketType.NORMAL],
-        status: OrderStatus.PENDING
-      };
+      // 如果已有订单ID，则更新订单而不是创建新订单
+      let targetOrderId = orderId;
       
-      console.log("准备创建订单:", orderData);
-      
-      // 创建订单
-      const newOrder = await OrderService.createOrder(orderData);
-      console.log("订单创建成功:", newOrder);
-      
-      // 设置订单ID
-      setOrderId(newOrder.id);
+      if (!targetOrderId) {
+        // 准备订单数据
+        const orderData = {
+          userId: currentUser.id,
+          showtimeId: showtime.id,
+          seats: selectedSeats,
+          ticketType: TicketType.NORMAL,
+          totalPrice: selectedSeats.length * showtime.price[TicketType.NORMAL],
+          status: OrderStatus.PENDING
+        };
+        
+        console.log("准备创建订单:", orderData);
+        
+        // 创建订单
+        const newOrder = await OrderService.createOrder(orderData);
+        console.log("订单创建成功:", newOrder);
+        
+        // 设置订单ID
+        targetOrderId = newOrder.id;
+        setOrderId(targetOrderId);
+      } else {
+        console.log("使用现有订单:", targetOrderId);
+      }
       
       // 模拟支付结果
       const paymentResult = {
         status: PaymentStatus.SUCCESS,
         message: '支付成功',
         transactionId: 'txn_' + Date.now(),
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        orderId: targetOrderId
       };
       
       // 设置支付状态
       setPaymentStatus(paymentResult.status);
       
       // 使用OrderService更新订单状态为已支付
-      if (paymentResult.status === PaymentStatus.SUCCESS) {
-        await OrderService.updateOrderStatus(newOrder.id, OrderStatus.PAID);
+      if (paymentResult.status === PaymentStatus.SUCCESS && targetOrderId) {
+        await OrderService.updateOrderStatus(targetOrderId, OrderStatus.PAID);
         console.log("订单状态已更新为已支付");
         
         // 刷新上下文中的数据
         await refreshData();
+        
+        // 立即跳转到成功页面，使用正确的订单ID
+        router.push(userRoutes.orderSuccess(targetOrderId));
       }
       
       console.log("支付流程完成");

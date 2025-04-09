@@ -98,6 +98,16 @@ export enum OrderStatus {
   REFUNDED = 'refunded'    // 已退款
 }
 
+// 票券状态
+export enum TicketStatus {
+  UNUSED = 'unused',         // 未使用
+  USED = 'used',             // 已使用
+  EXPIRED = 'expired',       // 已过期
+  AVAILABLE_SOON = 'soon',   // 即将可用（未到检票时间）
+  AVAILABLE_NOW = 'now',     // 可立即检票
+  LATE = 'late'              // 迟到（电影已开场但仍在允许入场时间范围内）
+}
+
 // 订单类型
 export interface Order {
   id: string;
@@ -107,10 +117,12 @@ export interface Order {
   ticketType: TicketType;
   totalPrice: number;
   status: OrderStatus;
+  ticketStatus?: TicketStatus; // 票券状态
   createdAt: Date;
   paidAt?: Date;
   cancelledAt?: Date;
   refundedAt?: Date;
+  checkedAt?: Date; // 检票时间
 }
 
 // 工作人员操作类型

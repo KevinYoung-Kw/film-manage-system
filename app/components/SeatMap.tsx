@@ -11,6 +11,7 @@ interface SeatMapProps {
   selectedSeats: string[];
   onSeatSelect: (seatId: string) => void;
   maxSelectableSeats?: number;
+  disabled?: boolean;
 }
 
 const SeatMap: React.FC<SeatMapProps> = ({
@@ -19,7 +20,8 @@ const SeatMap: React.FC<SeatMapProps> = ({
   columns,
   selectedSeats,
   onSeatSelect,
-  maxSelectableSeats = 4
+  maxSelectableSeats = 4,
+  disabled = false
 }) => {
   const [hoveredSeat, setHoveredSeat] = useState<string | null>(null);
 
@@ -54,6 +56,11 @@ const SeatMap: React.FC<SeatMapProps> = ({
         break;
     }
     
+    // 全局禁用状态
+    if (disabled) {
+      return `${baseClass} bg-slate-200 text-slate-400 cursor-not-allowed opacity-50`;
+    }
+    
     // 选中或不可用状态
     if (!seat.available) {
       return `${baseClass} bg-slate-300 text-slate-500 cursor-not-allowed opacity-50`;
@@ -68,7 +75,7 @@ const SeatMap: React.FC<SeatMapProps> = ({
   };
 
   const handleSeatClick = (seat: Seat | undefined) => {
-    if (!seat || !seat.available) return;
+    if (disabled || !seat || !seat.available) return;
     if (selectedSeats.includes(seat.id)) {
       onSeatSelect(seat.id); // 取消选中
     } else if (selectedSeats.length < maxSelectableSeats) {

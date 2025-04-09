@@ -3,14 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { format } from 'date-fns';
-import { CreditCard, Film, Clock, Check, X, RefreshCcw } from 'lucide-react';
+import { format, differenceInMinutes } from 'date-fns';
+import { CreditCard, Film, Clock, Check, X, RefreshCcw, AlertTriangle } from 'lucide-react';
 import MobileLayout from '@/app/components/layout/MobileLayout';
 import { Card } from '@/app/components/ui/Card';
 import TabGroup from '@/app/components/ui/TabGroup';
 import Button from '@/app/components/ui/Button';
 import { mockMovies, mockShowtimes, mockTheaters, defaultImages } from '@/app/lib/mockData';
-import { Order, OrderStatus } from '@/app/lib/types';
+import { Order, OrderStatus, TicketStatus } from '@/app/lib/types';
 import { useAppContext } from '@/app/lib/context/AppContext';
 
 export default function OrdersPage() {
@@ -23,10 +23,80 @@ export default function OrdersPage() {
     setOrders(contextOrders);
   }, [contextOrders]);
   
-  // 页面加载时刷新数据
+  // 页面加载时刷新数据并更新票券状态
   useEffect(() => {
     refreshData();
+    updateTicketStatuses();
   }, [refreshData]);
+  
+  // 更新所有票券的状态
+  const updateTicketStatuses = () => {
+    const now = new Date();
+    
+    const updatedOrders = contextOrders.map(order => {
+      // 只处理已支付的订单
+      if (order.status !== OrderStatus.PAID) return order;
+      
+      const showtime = mockShowtimes.find(s => s.id === order.showtimeId);
+      if (!showtime) return order;
+      
+      const showtimeDate = new Date(showtime.startTime);
+      
+      // 如果票已经被检过，状态为已使用
+      if (order.checkedAt) {
+        return {
+          ...order,
+          ticketStatus: TicketStatus.USED
+        };
+      }
+      
+      // 如果电影已经开始超过15分钟，状态为已过期
+      if (showtimeDate < now) {
+        const minutesAfterStart = differenceInMinutes(now, showtimeDate);
+        if (minutesAfterStart > 15) {
+          return {
+            ...order,
+            ticketStatus: TicketStatus.EXPIRED
+          };
+        } else {
+          // 电影已开始但在15分钟内，状态为迟到可入场
+          return {
+            ...order,
+            ticketStatus: TicketStatus.LATE
+          };
+        }
+      }
+      
+      // 如果电影即将开始（30分钟内），状态为可入场
+      const minutesToShowtime = differenceInMinutes(showtimeDate, now);
+      if (minutesToShowtime <= 30) {
+        return {
+          ...order,
+          ticketStatus: TicketStatus.AVAILABLE_NOW
+        };
+      }
+      
+      // 其他情况，状态为未使用（未到检票时间）
+      return {
+        ...order,
+        ticketStatus: TicketStatus.AVAILABLE_SOON
+      };
+    });
+    
+    setOrders(updatedOrders);
+  };
+  
+  // 检查待支付订单是否过期
+  const isPendingOrderExpired = (order: Order) => {
+    const now = new Date();
+    const showtime = mockShowtimes.find(s => s.id === order.showtimeId);
+    if (!showtime) return true; // 如果找不到场次信息，默认认为已过期
+    
+    const showtimeDate = new Date(showtime.startTime);
+    
+    // 如果电影已经开始，则订单已过期无法支付
+    return showtimeDate < now;
+  };
   
   // 按状态过滤订单
   const pendingOrders = orders.filter(order => order.status === OrderStatus.PENDING);
@@ -84,6 +154,58 @@ export default function OrdersPage() {
     }
   };
   
+  // 定义票券状态标签
+  const getTicketStatusLabel = (ticket: Order) => {
+    if (ticket.status !== OrderStatus.PAID) return null;
+    
+    switch (ticket.ticketStatus) {
+      case TicketStatus.UNUSED:
+        return (
+          <span className="flex items-center text-slate-600 text-xs bg-slate-100 px-2 py-1 rounded-full">
+            <Clock className="h-3 w-3 mr-1" />
+            未使用
+          </span>
+        );
+      case TicketStatus.USED:
+        return (
+          <span className="flex items-center text-emerald-600 text-xs bg-emerald-50 px-2 py-1 rounded-full">
+            <Check className="h-3 w-3 mr-1" />
+            已使用
+          </span>
+        );
+      case TicketStatus.EXPIRED:
+        return (
+          <span className="flex items-center text-red-600 text-xs bg-red-50 px-2 py-1 rounded-full">
+            <X className="h-3 w-3 mr-1" />
+            已过期
+          </span>
+        );
+      case TicketStatus.AVAILABLE_SOON:
+        return (
+          <span className="flex items-center text-blue-600 text-xs bg-blue-50 px-2 py-1 rounded-full">
+            <Clock className="h-3 w-3 mr-1" />
+            未到检票时间
+          </span>
+        );
+      case TicketStatus.AVAILABLE_NOW:
+        return (
+          <span className="flex items-center text-emerald-600 text-xs bg-emerald-50 px-2 py-1 rounded-full">
+            <Check className="h-3 w-3 mr-1" />
+            可立即入场
+          </span>
+        );
+      case TicketStatus.LATE:
+        return (
+          <span className="flex items-center text-amber-600 text-xs bg-amber-50 px-2 py-1 rounded-full">
+            <AlertTriangle className="h-3 w-3 mr-1" />
+            迟到可入场
+          </span>
+        );
+      default:
+        return null;
+    }
+  };
+  
   // 处理取消订单
   const handleCancelOrder = async (orderId: string) => {
     if (window.confirm('确定要取消该订单吗？取消后无法恢复。')) {
@@ -105,19 +227,22 @@ export default function OrdersPage() {
     if (!details) return null;
     
     const { movie, showtime, theater } = details;
+    const now = new Date();
+    const showtimeDate = new Date(showtime.startTime);
+    const isPast = showtimeDate < now;
     
     return (
       <Card key={order.id} className="mb-4">
         <div className="p-4 border-b border-slate-100">
           <div className="flex justify-between items-center mb-3">
             <h3 className="font-semibold">{movie.title}</h3>
-            {getStatusLabel(order.status)}
+            {order.status === OrderStatus.PAID ? getTicketStatusLabel(order) : getStatusLabel(order.status)}
           </div>
           
           <div className="flex">
             <div className="relative h-16 w-12 rounded overflow-hidden">
               <Image
-                src={movie.poster || defaultImages.moviePoster}
+                src={movie.webpPoster || movie.poster || defaultImages.moviePoster}
                 alt={movie.title}
                 fill
                 className="object-cover"
@@ -137,21 +262,52 @@ export default function OrdersPage() {
               
               <div className="mt-3 flex gap-2">
                 {order.status === OrderStatus.PENDING && (
-                  <Link href={`/user/payment?showtimeId=${order.showtimeId}`}>
-                    <Button size="sm" variant="primary">
-                      <CreditCard className="h-4 w-4 mr-1" />
-                      去支付
-                    </Button>
-                  </Link>
+                  <>
+                    {isPendingOrderExpired(order) ? (
+                      <Button size="sm" variant="primary" disabled>
+                        <X className="h-4 w-4 mr-1" />
+                        已过期
+                      </Button>
+                    ) : (
+                      <Link href={`/user/payment?showtimeId=${order.showtimeId}`}>
+                        <Button size="sm" variant="primary">
+                          <CreditCard className="h-4 w-4 mr-1" />
+                          去支付
+                        </Button>
+                      </Link>
+                    )}
+                  </>
                 )}
                 
                 {order.status === OrderStatus.PAID && (
-                  <Link href={`/user/orders/${order.id}`}>
-                    <Button size="sm" variant="outline">
-                      <Film className="h-4 w-4 mr-1" />
-                      查看票券
-                    </Button>
-                  </Link>
+                  <>
+                    <Link href={`/user/orders/${order.id}`}>
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        disabled={order.ticketStatus === TicketStatus.EXPIRED}
+                      >
+                        <Film className="h-4 w-4 mr-1" />
+                        查看票券
+                      </Button>
+                    </Link>
+                    
+                    {/* 显示迟到提醒 */}
+                    {order.ticketStatus === TicketStatus.LATE && (
+                      <div className="text-xs text-amber-600 flex items-center">
+                        <AlertTriangle className="h-3 w-3 mr-1" />
+                        迟到可入场
+                      </div>
+                    )}
+                    
+                    {/* 显示过期提醒 */}
+                    {order.ticketStatus === TicketStatus.EXPIRED && (
+                      <div className="text-xs text-red-600 flex items-center">
+                        <X className="h-3 w-3 mr-1" />
+                        已过期
+                      </div>
+                    )}
+                  </>
                 )}
                 
                 {order.status === OrderStatus.PENDING && (

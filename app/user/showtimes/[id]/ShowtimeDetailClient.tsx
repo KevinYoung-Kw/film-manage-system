@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
-import { Clock, Calendar, MapPin, Trash } from 'lucide-react';
+import { Clock, Calendar, MapPin, Trash, AlertTriangle } from 'lucide-react';
 import MobileLayout from '@/app/components/layout/MobileLayout';
 import { Card, CardFooter } from '@/app/components/ui/Card';
 import Button from '@/app/components/ui/Button';
@@ -29,6 +29,10 @@ export default function ShowtimeDetailClient({ showtime, movie, theater }: Showt
   // 使用ref跟踪初始化状态，避免重复设置
   const isInitialized = useRef(false);
   
+  // 检查场次是否已过期
+  const now = new Date();
+  const isExpired = new Date(showtime.startTime) < now;
+  
   // 组件挂载时设置选中的场次，只执行一次
   useEffect(() => {
     if (!isInitialized.current) {
@@ -36,12 +40,22 @@ export default function ShowtimeDetailClient({ showtime, movie, theater }: Showt
       isInitialized.current = true;
     }
     
+    // 如果场次已过期，自动跳转到场次列表页面
+    if (isExpired) {
+      // 设置一个短暂的延迟，让用户有时间看到过期提示
+      const timer = setTimeout(() => {
+        router.push('/user/showtimes');
+      }, 3000);
+      
+      return () => clearTimeout(timer);
+    }
+    
     // 清理函数
     return () => {
       // 退出页面时清除选择的座位
       clearSelectedSeats();
     };
-  }, [selectShowtime, clearSelectedSeats]); // 移除showtime依赖项
+  }, [selectShowtime, clearSelectedSeats, isExpired, router]); 
   
   // 格式化时间和日期
   const startTime = format(new Date(showtime.startTime), 'HH:mm');
@@ -51,6 +65,8 @@ export default function ShowtimeDetailClient({ showtime, movie, theater }: Showt
   
   // 处理座位选择
   const handleSeatSelection = (seatId: string) => {
+    if (isExpired) return; // 如果场次已过期，禁止选座
+    
     if (selectedSeats.includes(seatId)) {
       unselectSeat(seatId);
     } else {
@@ -88,6 +104,7 @@ export default function ShowtimeDetailClient({ showtime, movie, theater }: Showt
   
   // 处理票类型选择
   const handleTicketTypeChange = (type: TicketType) => {
+    if (isExpired) return; // 如果场次已过期，禁止更改票类型
     setSelectedTicketType(type);
   };
   
@@ -103,6 +120,11 @@ export default function ShowtimeDetailClient({ showtime, movie, theater }: Showt
   
   // 处理提交订单
   const handleSubmitOrder = () => {
+    if (isExpired) {
+      alert('该场次已过期，无法购票');
+      return;
+    }
+    
     if (selectedSeats.length === 0) {
       alert('请至少选择一个座位');
       return;
@@ -129,6 +151,17 @@ export default function ShowtimeDetailClient({ showtime, movie, theater }: Showt
 
   return (
     <MobileLayout title="选座购票" showBackButton>
+      {/* 过期场次提示 */}
+      {isExpired && (
+        <div className="p-4 bg-red-50 flex items-center text-red-600 border-b border-red-100">
+          <AlertTriangle className="h-5 w-5 mr-2" />
+          <div>
+            <p className="font-medium">该场次已过期</p>
+            <p className="text-sm">无法购买已过期的电影票，即将返回场次列表</p>
+          </div>
+        </div>
+      )}
+      
       {/* 电影和场次信息 */}
       <Card className="rounded-none shadow-none">
         <div className="p-4 border-b border-slate-100">
@@ -184,8 +217,9 @@ export default function ShowtimeDetailClient({ showtime, movie, theater }: Showt
                   selectedTicketType === type
                     ? 'bg-indigo-600 text-white'
                     : 'bg-slate-100 text-slate-700'
-                }`}
+                } ${isExpired ? 'opacity-50 cursor-not-allowed' : ''}`}
                 onClick={() => handleTicketTypeChange(type)}
+                disabled={isExpired}
               >
                 {getTicketTypeLabel(type)} ¥{showtime.price[type]}
               </button>
@@ -204,6 +238,7 @@ export default function ShowtimeDetailClient({ showtime, movie, theater }: Showt
           selectedSeats={selectedSeats}
           onSeatSelect={handleSeatSelection}
           maxSelectableSeats={4}
+          disabled={isExpired}
         />
       </div>
       
@@ -221,6 +256,7 @@ export default function ShowtimeDetailClient({ showtime, movie, theater }: Showt
                 <button 
                   onClick={() => handleSeatSelection(seatId)}
                   className="ml-1 p-1 rounded-full hover:bg-indigo-100"
+                  disabled={isExpired}
                 >
                   <Trash className="h-3 w-3" />
                 </button>
@@ -250,33 +286,38 @@ export default function ShowtimeDetailClient({ showtime, movie, theater }: Showt
               {selectedSeats.some(seatId => {
                 const seat = showtime.availableSeats.find(s => s.id === seatId);
                 return seat && seat.type === 'disabled';
-              }) && <span className="text-blue-600">含无障碍座位(×0.6)</span>}
+              }) && <span className="text-green-600">含无障碍座位(×0.6)</span>}
             </div>
           </div>
         </div>
-        <Button
-          fullWidth
-          size="lg"
-          disabled={selectedSeats.length === 0}
+        <Button 
+          variant="primary" 
+          size="lg" 
+          fullWidth 
           onClick={handleSubmitOrder}
+          disabled={selectedSeats.length === 0 || isExpired}
         >
-          确认选座，前往支付
+          {isExpired ? '场次已过期' : '确认选座并支付'}
         </Button>
       </div>
       
-      {/* 底部空白区，防止内容被底部栏遮挡 */}
+      {/* 底部空间填充，避免内容被固定底栏遮挡 */}
       <div className="h-32"></div>
     </MobileLayout>
   );
 }
 
-// 辅助函数：获取票类型的显示名称
 function getTicketTypeLabel(type: TicketType): string {
-  const labels: Record<TicketType, string> = {
-    [TicketType.NORMAL]: '普通票',
-    [TicketType.STUDENT]: '学生票',
-    [TicketType.SENIOR]: '老人票',
-    [TicketType.CHILD]: '儿童票'
-  };
-  return labels[type];
+  switch (type) {
+    case TicketType.NORMAL:
+      return '普通票';
+    case TicketType.STUDENT:
+      return '学生票';
+    case TicketType.SENIOR:
+      return '老人票';
+    case TicketType.CHILD:
+      return '儿童票';
+    default:
+      return '普通票';
+  }
 } 

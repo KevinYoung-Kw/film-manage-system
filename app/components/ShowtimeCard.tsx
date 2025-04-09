@@ -35,6 +35,10 @@ const ShowtimeCard: React.FC<ShowtimeCardProps> = ({
   // 获取普通票价
   const normalPrice = showtime.price[TicketType.NORMAL];
   
+  // 检查场次是否已过期
+  const now = new Date();
+  const isExpired = new Date(showtime.startTime) < now;
+  
   return (
     <Card className={`p-3 ${className}`} withHover>
       <div className="flex justify-between items-start">
@@ -88,12 +92,21 @@ const ShowtimeCard: React.FC<ShowtimeCardProps> = ({
         </div>
       </div>
       
-      <Link 
-        href={`/showtimes/${showtime.id}`}
-        className="block w-full text-center bg-indigo-600 text-white py-2 rounded-md mt-3 text-sm font-medium hover:bg-indigo-700 transition-colors"
-      >
-        选座购票
-      </Link>
+      {isExpired ? (
+        <button 
+          disabled
+          className="block w-full text-center bg-slate-300 text-slate-500 py-2 rounded-md mt-3 text-sm font-medium cursor-not-allowed"
+        >
+          已过期
+        </button>
+      ) : (
+        <Link 
+          href={`/showtimes/${showtime.id}`}
+          className="block w-full text-center bg-indigo-600 text-white py-2 rounded-md mt-3 text-sm font-medium hover:bg-indigo-700 transition-colors"
+        >
+          选座购票
+        </Link>
+      )}
     </Card>
   );
 };

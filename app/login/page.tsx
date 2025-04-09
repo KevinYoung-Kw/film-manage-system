@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Eye, EyeOff, Mail, Lock, ArrowLeft, UserRound, Shield, Film } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, UserRound, Shield, Film } from 'lucide-react';
 import { useAppContext } from '@/app/lib/context/AppContext';
 import { UserRole } from '@/app/lib/types';
 
@@ -104,13 +104,8 @@ export default function LoginPage() {
   
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
-      {/* 顶部导航 */}
-      <div className="p-4 flex items-center">
-        <Link href="/" className="flex items-center text-slate-600">
-          <ArrowLeft size={20} />
-          <span className="ml-2">返回</span>
-        </Link>
-      </div>
+      {/* 顶部空间 */}
+      <div className="p-4"></div>
       
       <div className="flex-1 flex flex-col justify-center max-w-md mx-auto w-full px-4 py-8">
         {/* Logo和标题 */}
@@ -125,8 +120,8 @@ export default function LoginPage() {
               />
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-slate-800">登录账户</h1>
-          <p className="text-slate-500 mt-2">欢迎回到电影票务系统</p>
+          <h1 className="text-2xl font-bold text-slate-800">欢迎使用</h1>
+          <p className="text-slate-500 mt-2">登录电影票务系统</p>
         </div>
         
         {/* 登录表单 */}
@@ -208,9 +203,6 @@ export default function LoginPage() {
             <div className="mt-4 grid grid-cols-3 gap-3">
               {demoAccounts.map((account) => {
                 const IconComponent = account.icon;
-                const bgColorClass = `bg-${account.color}-100`;
-                const textColorClass = `text-${account.color}-700`;
-                const hoverClass = `hover:bg-${account.color}-200`;
                 
                 return (
                   <button
@@ -218,7 +210,7 @@ export default function LoginPage() {
                     type="button"
                     onClick={() => loginWithDemoAccount(account)}
                     disabled={isLoading}
-                    className={`${bgColorClass} ${textColorClass} ${hoverClass} flex flex-col items-center justify-center p-3 rounded-md transition-colors`}
+                    className={`bg-${account.color}-100 text-${account.color}-700 hover:bg-${account.color}-200 flex flex-col items-center justify-center p-3 rounded-md transition-colors`}
                   >
                     <IconComponent size={24} />
                     <span className="mt-1 text-xs">{account.label}</span>
@@ -247,4 +239,4 @@ export default function LoginPage() {
       </div>
     </div>
   );
-} 
+}

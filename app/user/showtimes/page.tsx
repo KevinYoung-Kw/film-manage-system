@@ -15,6 +15,9 @@ export default function ShowtimesPage() {
   const [date, setDate] = useState<Date>(new Date());
   const [showtimes, setShowtimes] = useState<any[]>([]);
   
+  // 获取当前时间
+  const now = new Date();
+  
   // 获取未来7天的日期列表
   const dateList = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
@@ -37,9 +40,16 @@ export default function ShowtimesPage() {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     
-    // 查找当天的所有场次
+    // 查找当天的所有场次，并过滤掉已过期的场次
     const todayShowtimes = mockShowtimes.filter(showtime => {
       const showtimeDate = new Date(showtime.startTime);
+      // 如果是今天，则只显示当前时间之后的场次
+      if (today.getDate() === now.getDate() && 
+          today.getMonth() === now.getMonth() && 
+          today.getFullYear() === now.getFullYear()) {
+        return showtimeDate >= now && showtimeDate < tomorrow;
+      }
+      // 如果是未来的日期，显示所有场次
       return showtimeDate >= today && showtimeDate < tomorrow;
     });
     
@@ -56,7 +66,7 @@ export default function ShowtimesPage() {
     });
     
     setShowtimes(showtimesWithDetails);
-  }, [date]);
+  }, [date, now]);
   
   // 分组展示场次（按电影分组）
   const showtimesByMovie: Record<string, any[]> = {};
@@ -71,6 +81,11 @@ export default function ShowtimesPage() {
     
     showtimesByMovie[movieId].push(showtime);
   });
+  
+  // 检查场次是否已过期
+  const isShowtimeExpired = (startTime: Date) => {
+    return new Date(startTime) < now;
+  };
   
   return (
     <MobileLayout title="场次列表">
@@ -132,33 +147,43 @@ export default function ShowtimesPage() {
                   
                   {/* 场次列表 */}
                   <div className="divide-y divide-slate-100">
-                    {movieShowtimes.map(showtime => (
-                      <Link
-                        key={showtime.id}
-                        href={userRoutes.selectSeats(showtime.id)}
-                        className="block p-4 hover:bg-slate-50"
-                      >
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <div className="font-medium">
-                              {format(new Date(showtime.startTime), 'HH:mm')}
-                              <span className="text-slate-500 text-sm ml-2">
-                                - {format(new Date(new Date(showtime.startTime).getTime() + movieShowtimes[0].movie.duration * 60000), 'HH:mm')}
-                              </span>
+                    {movieShowtimes.map(showtime => {
+                      const expired = isShowtimeExpired(showtime.startTime);
+                      return (
+                        <div
+                          key={showtime.id}
+                          className="block p-4 hover:bg-slate-50"
+                        >
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <div className="font-medium">
+                                {format(new Date(showtime.startTime), 'HH:mm')}
+                                <span className="text-slate-500 text-sm ml-2">
+                                  - {format(new Date(new Date(showtime.startTime).getTime() + movieShowtimes[0].movie.duration * 60000), 'HH:mm')}
+                                </span>
+                              </div>
+                              <div className="text-sm text-slate-500 mt-1">
+                                {showtime.theater.name} | {showtime.language}
+                              </div>
                             </div>
-                            <div className="text-sm text-slate-500 mt-1">
-                              {showtime.theater.name} | {showtime.language}
+                            <div className="text-right">
+                              <div className="text-indigo-600 font-medium">¥{showtime.price.normal}</div>
+                              {expired ? (
+                                <button disabled className="mt-1 px-3 py-1 bg-slate-300 text-slate-500 text-xs rounded-full cursor-not-allowed">
+                                  已过期
+                                </button>
+                              ) : (
+                                <Link href={userRoutes.selectSeats(showtime.id)}>
+                                  <button className="mt-1 px-3 py-1 bg-indigo-600 text-white text-xs rounded-full">
+                                    选座购票
+                                  </button>
+                                </Link>
+                              )}
                             </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-indigo-600 font-medium">¥{showtime.price.normal}</div>
-                            <button className="mt-1 px-3 py-1 bg-indigo-600 text-white text-xs rounded-full">
-                              选座购票
-                            </button>
                           </div>
                         </div>
-                      </Link>
-                    ))}
+                      );
+                    })}
                   </div>
                 </Card>
               </div>

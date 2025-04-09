@@ -510,9 +510,21 @@ export const OrderService = {
   
   // 创建订单
   createOrder: (order: Omit<Order, 'id' | 'createdAt'>): Promise<Order> => {
+    // 生成订单号：TK + 年月日 + 4位序号
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    
+    // 生成4位序号，从现有订单数量+1开始
+    const orderCount = mockOrders.length + 1;
+    const serialNumber = String(orderCount).padStart(4, '0');
+    
+    const orderId = `TK${year.toString().slice(-2)}${month}${day}${serialNumber}`;
+    
     const newOrder: Order = {
       ...order,
-      id: `order${mockOrders.length + 1}`,
+      id: orderId,
       createdAt: new Date()
     };
     
@@ -661,9 +673,21 @@ export const StaffOperationService = {
     }
     
     try {
+      // 生成订单号：TK + 年月日 + 4位序号
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      
+      // 生成4位序号，从现有订单数量+1开始
+      const orderCount = mockOrders.length + 1;
+      const serialNumber = String(orderCount).padStart(4, '0');
+      
+      const orderId = `TK${year.toString().slice(-2)}${month}${day}${serialNumber}`;
+      
       // 创建订单
       const newOrder: Order = {
-        id: `order${mockOrders.length + 1}`,
+        id: orderId,
         userId: `staff-customer-${Date.now()}`, // 线下顾客临时ID
         showtimeId,
         seats,
