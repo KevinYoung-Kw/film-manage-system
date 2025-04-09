@@ -33,8 +33,11 @@ const generateInitialSeats = (theater: Theater): Seat[] => {
         type = 'disabled';
       }
       
+      // 生成随机UUID格式的ID，但保持前缀方便识别
+      const randomId = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+      
       seats.push({
-        id: `seat-${theater.id}-${row}-${col}`,
+        id: `seat-${theater.id.substring(0, 8)}-${row}-${col}-${randomId}`,
         row,
         column: col,
         type,
@@ -59,7 +62,7 @@ export const siteInfo = {
 // 模拟电影数据
 export const mockMovies: Movie[] = [
   {
-    id: "movie1",
+    id: "00000000-0000-0000-0000-000000000101",
     title: "星际迷航：超越边界",
     originalTitle: "Star Trek: Beyond Boundaries",
     description: "2127年，星际联盟探索舰队发现一个神秘的星际通道，可能连接到未知宇宙。舰队指挥官林宇辰带领精英团队穿越通道，意外发现一个与地球平行发展的文明。他们必须在两个世界的冲突中寻找和平，同时解开通道背后的宇宙奥秘。",
@@ -75,7 +78,7 @@ export const mockMovies: Movie[] = [
     status: MovieStatus.SHOWING
   },
   {
-    id: "movie2",
+    id: "00000000-0000-0000-0000-000000000102",
     title: "幻象追踪",
     poster: defaultImages.moviePoster,
     webpPoster: '/images/movies/movie2.webp',
@@ -89,7 +92,7 @@ export const mockMovies: Movie[] = [
     status: MovieStatus.SHOWING
   },
   {
-    id: "movie3",
+    id: "00000000-0000-0000-0000-000000000103",
     title: "春日告白",
     poster: defaultImages.moviePoster,
     webpPoster: '/images/movies/movie3.webp',
@@ -103,7 +106,7 @@ export const mockMovies: Movie[] = [
     status: MovieStatus.SHOWING
   },
   {
-    id: "movie4",
+    id: "00000000-0000-0000-0000-000000000104",
     title: "暗影追踪者",
     poster: defaultImages.moviePoster,
     webpPoster: '/images/movies/movie4.webp',
@@ -117,7 +120,7 @@ export const mockMovies: Movie[] = [
     status: MovieStatus.SHOWING
   },
   {
-    id: "movie5",
+    id: "00000000-0000-0000-0000-000000000105",
     title: "城市之光",
     poster: defaultImages.moviePoster,
     webpPoster: '/images/movies/movie5.webp',
@@ -131,7 +134,7 @@ export const mockMovies: Movie[] = [
     status: MovieStatus.COMING_SOON
   },
   {
-    id: "movie6",
+    id: "00000000-0000-0000-0000-000000000106",
     title: "微光之下",
     poster: defaultImages.moviePoster,
     webpPoster: '/images/movies/movie6.webp',
@@ -145,7 +148,7 @@ export const mockMovies: Movie[] = [
     status: MovieStatus.COMING_SOON
   },
   {
-    id: "movie7",
+    id: "00000000-0000-0000-0000-000000000107",
     title: "古城疑云",
     poster: defaultImages.moviePoster,
     webpPoster: '/images/movies/movie7.webp',
@@ -159,7 +162,7 @@ export const mockMovies: Movie[] = [
     status: MovieStatus.SHOWING
   },
   {
-    id: "movie8",
+    id: "00000000-0000-0000-0000-000000000108",
     title: "芷园传奇",
     poster: defaultImages.moviePoster,
     webpPoster: '/images/movies/movie8.webp',
@@ -173,7 +176,7 @@ export const mockMovies: Movie[] = [
     status: MovieStatus.COMING_SOON
   },
   {
-    id: "movie9",
+    id: "00000000-0000-0000-0000-000000000109",
     title: "华农爱情故事",
     poster: defaultImages.moviePoster,
     webpPoster: '/images/movies/movie9.webp',
@@ -191,7 +194,7 @@ export const mockMovies: Movie[] = [
 // 模拟影厅数据
 export const mockTheaters: Theater[] = [
   {
-    id: "theater1",
+    id: "00000000-0000-0000-0000-000000000201",
     name: "1号厅 - IMAX",
     totalSeats: 120,
     rows: 10,
@@ -199,7 +202,7 @@ export const mockTheaters: Theater[] = [
     equipment: ["IMAX", "杜比全景声"]
   },
   {
-    id: "theater2",
+    id: "00000000-0000-0000-0000-000000000202",
     name: "2号厅 - 3D",
     totalSeats: 80,
     rows: 8,
@@ -207,7 +210,7 @@ export const mockTheaters: Theater[] = [
     equipment: ["3D", "杜比音效"]
   },
   {
-    id: "theater3",
+    id: "00000000-0000-0000-0000-000000000203",
     name: "3号厅 - 标准",
     totalSeats: 60,
     rows: 6,
@@ -219,9 +222,9 @@ export const mockTheaters: Theater[] = [
 // 模拟电影场次数据
 export const mockShowtimes: Showtime[] = [
   {
-    id: "showtime1",
-    movieId: "movie1",
-    theaterId: "theater1",
+    id: "00000000-0000-0000-0000-000000000401",
+    movieId: "00000000-0000-0000-0000-000000000101",
+    theaterId: "00000000-0000-0000-0000-000000000201",
     startTime: new Date("2025-04-06T10:00:00"),
     endTime: new Date("2025-04-06T12:25:00"),
     price: {
@@ -233,9 +236,9 @@ export const mockShowtimes: Showtime[] = [
     availableSeats: generateInitialSeats(mockTheaters[0])
   },
   {
-    id: "showtime2",
-    movieId: "movie1",
-    theaterId: "theater1",
+    id: "00000000-0000-0000-0000-000000000402",
+    movieId: "00000000-0000-0000-0000-000000000101",
+    theaterId: "00000000-0000-0000-0000-000000000201",
     startTime: new Date("2025-04-06T14:00:00"),
     endTime: new Date("2025-04-06T16:25:00"),
     price: {
@@ -247,9 +250,9 @@ export const mockShowtimes: Showtime[] = [
     availableSeats: generateInitialSeats(mockTheaters[0])
   },
   {
-    id: "showtime3",
-    movieId: "movie2",
-    theaterId: "theater2",
+    id: "00000000-0000-0000-0000-000000000403",
+    movieId: "00000000-0000-0000-0000-000000000102",
+    theaterId: "00000000-0000-0000-0000-000000000202",
     startTime: new Date("2025-04-08T11:30:00"),
     endTime: new Date("2025-04-08T13:28:00"),
     price: {
@@ -261,9 +264,9 @@ export const mockShowtimes: Showtime[] = [
     availableSeats: generateInitialSeats(mockTheaters[1])
   },
   {
-    id: "showtime4",
-    movieId: "movie3",
-    theaterId: "theater3",
+    id: "00000000-0000-0000-0000-000000000404",
+    movieId: "00000000-0000-0000-0000-000000000103",
+    theaterId: "00000000-0000-0000-0000-000000000203",
     startTime: new Date("2025-04-10T13:00:00"),
     endTime: new Date("2025-04-10T14:52:00"),
     price: {
@@ -275,9 +278,9 @@ export const mockShowtimes: Showtime[] = [
     availableSeats: generateInitialSeats(mockTheaters[2])
   },
   {
-    id: "showtime5",
-    movieId: "movie4",
-    theaterId: "theater1",
+    id: "00000000-0000-0000-0000-000000000405",
+    movieId: "00000000-0000-0000-0000-000000000104",
+    theaterId: "00000000-0000-0000-0000-000000000201",
     startTime: new Date("2025-04-07T19:00:00"),
     endTime: new Date("2025-04-07T21:15:00"),
     price: {
@@ -377,28 +380,28 @@ export const mockShowtimes: Showtime[] = [
 // 模拟用户数据
 export const mockUsers: User[] = [
   {
-    id: "admin1",
+    id: "00000000-0000-0000-0000-000000000001",
     name: "管理员",
     email: "admin@example.com",
     role: UserRole.ADMIN,
     createdAt: new Date("2023-01-01")
   },
   {
-    id: "staff1",
+    id: "00000000-0000-0000-0000-000000000002",
     name: "售票员小王",
     email: "staff1@example.com",
     role: UserRole.STAFF,
     createdAt: new Date("2023-01-15")
   },
   {
-    id: "customer1",
+    id: "00000000-0000-0000-0000-000000000003",
     name: "张三",
     email: "customer1@example.com",
     role: UserRole.CUSTOMER,
     createdAt: new Date("2023-02-10")
   },
   {
-    id: "customer2",
+    id: "00000000-0000-0000-0000-000000000004",
     name: "李四",
     email: "customer2@example.com",
     role: UserRole.CUSTOMER,
@@ -410,9 +413,9 @@ export const mockUsers: User[] = [
 export const mockOrders: Order[] = [
   {
     id: "TK2504060001",
-    userId: "customer1",
-    showtimeId: "showtime1",
-    seats: ["seat-theater1-5-6", "seat-theater1-5-7"],
+    userId: "00000000-0000-0000-0000-000000000003",
+    showtimeId: "00000000-0000-0000-0000-000000000401",
+    seats: ["seat-00000000-5-6-123456", "seat-00000000-5-7-234567"],
     ticketType: TicketType.NORMAL,
     totalPrice: 160,
     status: OrderStatus.PAID,
@@ -421,9 +424,9 @@ export const mockOrders: Order[] = [
   },
   {
     id: "TK2504060028",
-    userId: "customer2",
-    showtimeId: "showtime3",
-    seats: ["seat-theater2-3-5"],
+    userId: "00000000-0000-0000-0000-000000000004",
+    showtimeId: "00000000-0000-0000-0000-000000000403",
+    seats: ["seat-00000000-3-5-345678"],
     ticketType: TicketType.STUDENT,
     totalPrice: 30,
     status: OrderStatus.PAID,
@@ -432,9 +435,9 @@ export const mockOrders: Order[] = [
   },
   {
     id: "TK2504060073",
-    userId: "customer1",
-    showtimeId: "showtime5",
-    seats: ["seat-theater1-4-6", "seat-theater1-4-7", "seat-theater1-4-8"],
+    userId: "00000000-0000-0000-0000-000000000003",
+    showtimeId: "00000000-0000-0000-0000-000000000405",
+    seats: ["seat-00000000-4-6-456789", "seat-00000000-4-7-567890", "seat-00000000-4-8-678901"],
     ticketType: TicketType.NORMAL,
     totalPrice: 270,
     status: OrderStatus.PENDING,
@@ -446,13 +449,13 @@ export const mockOrders: Order[] = [
 export const mockStaffOperations: StaffOperation[] = [
   {
     id: "operation1",
-    staffId: "staff1",
+    staffId: "00000000-0000-0000-0000-000000000002",
     orderId: "TK2504060001",
-    showtimeId: "showtime1",
+    showtimeId: "00000000-0000-0000-0000-000000000401",
     type: StaffOperationType.SELL,
     details: JSON.stringify({
       ticketType: TicketType.NORMAL,
-      seats: ["seat-theater1-5-6", "seat-theater1-5-7"],
+      seats: ["seat-00000000-5-6-123456", "seat-00000000-5-7-234567"],
       totalPrice: 160,
       paymentMethod: "cash"
     }),
@@ -460,13 +463,13 @@ export const mockStaffOperations: StaffOperation[] = [
   },
   {
     id: "operation2",
-    staffId: "staff1",
+    staffId: "00000000-0000-0000-0000-000000000002",
     orderId: "TK2504060028",
-    showtimeId: "showtime3",
+    showtimeId: "00000000-0000-0000-0000-000000000403",
     type: StaffOperationType.SELL,
     details: JSON.stringify({
       ticketType: TicketType.STUDENT,
-      seats: ["seat-theater2-3-5"],
+      seats: ["seat-00000000-3-5-345678"],
       totalPrice: 30,
       paymentMethod: "wechat"
     }),
@@ -474,9 +477,9 @@ export const mockStaffOperations: StaffOperation[] = [
   },
   {
     id: "operation3",
-    staffId: "staff1",
+    staffId: "00000000-0000-0000-0000-000000000002",
     orderId: "TK2504060001",
-    showtimeId: "showtime1",
+    showtimeId: "00000000-0000-0000-0000-000000000401",
     type: StaffOperationType.CHECK,
     details: JSON.stringify({
       checkTime: "2025-04-06T09:45:00",
@@ -486,9 +489,9 @@ export const mockStaffOperations: StaffOperation[] = [
   },
   {
     id: "operation4",
-    staffId: "staff1",
+    staffId: "00000000-0000-0000-0000-000000000002",
     orderId: "TK2504060073",
-    showtimeId: "showtime2",
+    showtimeId: "00000000-0000-0000-0000-000000000402",
     type: StaffOperationType.REFUND,
     details: JSON.stringify({
       refundAmount: 80,
@@ -503,7 +506,7 @@ export const mockStaffOperations: StaffOperation[] = [
 export const mockStaffSchedules: StaffSchedule[] = [
   {
     id: "schedule1",
-    staffId: "staff1",
+    staffId: "00000000-0000-0000-0000-000000000002",
     date: new Date("2025-04-06"),
     shift: ShiftType.MORNING,
     position: "售票",
@@ -512,7 +515,7 @@ export const mockStaffSchedules: StaffSchedule[] = [
   },
   {
     id: "schedule2",
-    staffId: "staff1",
+    staffId: "00000000-0000-0000-0000-000000000002",
     date: new Date("2025-04-06"),
     shift: ShiftType.AFTERNOON,
     position: "检票",
@@ -521,7 +524,7 @@ export const mockStaffSchedules: StaffSchedule[] = [
   },
   {
     id: "schedule3",
-    staffId: "staff1",
+    staffId: "00000000-0000-0000-0000-000000000002",
     date: new Date("2025-04-07"),
     shift: ShiftType.EVENING,
     position: "售票",
@@ -531,7 +534,7 @@ export const mockStaffSchedules: StaffSchedule[] = [
   },
   {
     id: "schedule4",
-    staffId: "staff1",
+    staffId: "00000000-0000-0000-0000-000000000002",
     date: new Date("2025-04-08"),
     shift: ShiftType.MORNING,
     position: "售票",
@@ -539,7 +542,7 @@ export const mockStaffSchedules: StaffSchedule[] = [
   },
   {
     id: "schedule5",
-    staffId: "staff1",
+    staffId: "00000000-0000-0000-0000-000000000002",
     date: new Date("2025-04-09"),
     shift: ShiftType.AFTERNOON,
     position: "检票",

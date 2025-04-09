@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { format } from 'date-fns';
@@ -15,8 +15,8 @@ export default function ShowtimesPage() {
   const [date, setDate] = useState<Date>(new Date());
   const [showtimes, setShowtimes] = useState<any[]>([]);
   
-  // 获取当前时间
-  const now = new Date();
+  // 将当前时间存储在ref中，这样它不会在每次渲染时改变
+  const nowRef = useRef(new Date());
   
   // 获取未来7天的日期列表
   const dateList = Array.from({ length: 7 }, (_, i) => {
@@ -39,6 +39,9 @@ export default function ShowtimesPage() {
     
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    // 使用ref中存储的当前时间
+    const now = nowRef.current;
     
     // 查找当天的所有场次，并过滤掉已过期的场次
     const todayShowtimes = mockShowtimes.filter(showtime => {
@@ -66,7 +69,7 @@ export default function ShowtimesPage() {
     });
     
     setShowtimes(showtimesWithDetails);
-  }, [date, now]);
+  }, [date]); // 只依赖于date变化
   
   // 分组展示场次（按电影分组）
   const showtimesByMovie: Record<string, any[]> = {};
@@ -84,7 +87,7 @@ export default function ShowtimesPage() {
   
   // 检查场次是否已过期
   const isShowtimeExpired = (startTime: Date) => {
-    return new Date(startTime) < now;
+    return new Date(startTime) < nowRef.current;
   };
   
   return (

@@ -1,6 +1,19 @@
 -- 电影票务系统安全策略
 -- 适用于Supabase (PostgreSQL)
 
+-- 创建辅助函数来检查用户角色
+CREATE OR REPLACE FUNCTION is_admin() RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN (SELECT role FROM auth.users WHERE id = auth.uid()) = 'admin';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION is_staff() RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN (SELECT role FROM auth.users WHERE id = auth.uid()) IN ('admin', 'staff');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- 创建帮助函数：安全地创建策略
 CREATE OR REPLACE FUNCTION create_policy_if_not_exists(
     policy_name TEXT,
@@ -94,7 +107,7 @@ SELECT create_policy_if_not_exists(
     'users_select_policy',
     'users',
     'SELECT',
-    'auth.uid() = id OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = ''admin'') OR (role = ''staff'' AND EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND (role = ''admin'' OR role = ''staff'')))'
+    'auth.uid() = id OR (SELECT role FROM auth.users WHERE id = auth.uid()) = ''admin'' OR ((SELECT role FROM auth.users WHERE id = auth.uid()) IN (''admin'', ''staff'') AND role = ''staff'')'
 );
 
 -- 用户只能更新自己的信息（管理员除外）
@@ -102,7 +115,7 @@ SELECT create_policy_if_not_exists(
     'users_update_policy',
     'users',
     'UPDATE',
-    'auth.uid() = id OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = ''admin'')'
+    'auth.uid() = id OR (SELECT role FROM auth.users WHERE id = auth.uid()) = ''admin'''
 );
 
 -- 只有管理员可以插入或删除用户
@@ -111,14 +124,14 @@ SELECT create_policy_if_not_exists(
     'users',
     'INSERT',
     NULL,
-    'EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = ''admin'')'
+    '(SELECT role FROM auth.users WHERE id = auth.uid()) = ''admin'''
 );
 
 SELECT create_policy_if_not_exists(
     'users_delete_policy',
     'users',
     'DELETE',
-    'EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = ''admin'')'
+    '(SELECT role FROM auth.users WHERE id = auth.uid()) = ''admin'''
 );
 
 -- 2. 电影表安全策略
@@ -135,7 +148,7 @@ SELECT create_policy_if_not_exists(
     'movies_admin_policy',
     'movies',
     'ALL',
-    'EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = ''admin'')'
+    'is_admin()'
 );
 
 -- 3. 影厅表安全策略
@@ -152,7 +165,7 @@ SELECT create_policy_if_not_exists(
     'theaters_admin_policy',
     'theaters',
     'ALL',
-    'EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = ''admin'')'
+    'is_admin()'
 );
 
 -- 4. 座位布局表安全策略
@@ -169,7 +182,7 @@ SELECT create_policy_if_not_exists(
     'theater_seat_layouts_admin_policy',
     'theater_seat_layouts',
     'ALL',
-    'EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = ''admin'')'
+    'is_admin()'
 );
 
 -- 5. 场次表安全策略
@@ -186,7 +199,7 @@ SELECT create_policy_if_not_exists(
     'showtimes_admin_policy',
     'showtimes',
     'ALL',
-    'EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = ''admin'')'
+    'is_admin()'
 );
 
 -- 6. 座位表安全策略
@@ -203,7 +216,7 @@ SELECT create_policy_if_not_exists(
     'seats_update_policy',
     'seats',
     'UPDATE',
-    'EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND (role = ''admin'' OR role = ''staff''))'
+    'is_staff()'
 );
 
 -- 只有管理员可以添加或删除座位
@@ -211,7 +224,7 @@ SELECT create_policy_if_not_exists(
     'seats_admin_policy',
     'seats',
     'ALL',
-    'EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = ''admin'')'
+    'is_admin()'
 );
 
 -- 7. 订单表安全策略
@@ -220,7 +233,7 @@ SELECT create_policy_if_not_exists(
     'orders_select_policy',
     'orders',
     'SELECT',
-    'user_id = auth.uid() OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND (role = ''admin'' OR role = ''staff''))'
+    'user_id = auth.uid() OR is_staff()'
 );
 
 -- 用户只能创建自己的订单
@@ -229,7 +242,7 @@ SELECT create_policy_if_not_exists(
     'orders',
     'INSERT',
     NULL,
-    'user_id = auth.uid() OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND (role = ''admin'' OR role = ''staff''))'
+    'user_id = auth.uid() OR is_staff()'
 );
 
 -- 用户只能更新自己的待支付订单
@@ -245,7 +258,7 @@ SELECT create_policy_if_not_exists(
     'orders_update_staff_policy',
     'orders',
     'UPDATE',
-    'EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND (role = ''admin'' OR role = ''staff''))'
+    'is_staff()'
 );
 
 -- 8. 订单座位关联表安全策略
@@ -259,7 +272,7 @@ SELECT create_policy_if_not_exists(
         WHERE orders.id = order_seats.order_id
         AND (
             orders.user_id = auth.uid() OR
-            EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND (role = ''admin'' OR role = ''staff''))
+            is_staff()
         )
     )'
 );
@@ -274,7 +287,7 @@ SELECT create_policy_if_not_exists(
         WHERE orders.id = order_seats.order_id
         AND (
             orders.user_id = auth.uid() OR
-            EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND (role = ''admin'' OR role = ''staff''))
+            is_staff()
         )
     )'
 );
@@ -285,16 +298,32 @@ SELECT create_policy_if_not_exists(
     'staff_operations_select_policy',
     'staff_operations',
     'SELECT',
-    'staff_id = auth.uid() OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = ''admin'')'
+    'staff_id = auth.uid() OR is_admin()'
 );
 
--- 工作人员只能创建自己的操作记录
+-- 工作人员只能插入自己的操作记录
 SELECT create_policy_if_not_exists(
     'staff_operations_insert_policy',
     'staff_operations',
     'INSERT',
     NULL,
-    'staff_id = auth.uid() OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = ''admin'')'
+    'staff_id = auth.uid() OR is_admin()'
+);
+
+-- 工作人员只能更新自己的操作记录
+SELECT create_policy_if_not_exists(
+    'staff_operations_update_policy',
+    'staff_operations',
+    'UPDATE',
+    'staff_id = auth.uid() OR is_admin()'
+);
+
+-- 只有管理员可以删除操作记录
+SELECT create_policy_if_not_exists(
+    'staff_operations_delete_policy',
+    'staff_operations',
+    'DELETE',
+    'is_admin()'
 );
 
 -- 10. 工作人员排班表安全策略
@@ -303,7 +332,7 @@ SELECT create_policy_if_not_exists(
     'staff_schedules_select_policy',
     'staff_schedules',
     'SELECT',
-    'staff_id = auth.uid() OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = ''admin'')'
+    'staff_id = auth.uid() OR is_admin()'
 );
 
 -- 只有管理员可以添加、修改、删除排班
@@ -311,7 +340,7 @@ SELECT create_policy_if_not_exists(
     'staff_schedules_admin_policy',
     'staff_schedules',
     'ALL',
-    'EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = ''admin'')'
+    'is_admin()'
 );
 
 -- 11. 支付记录表安全策略
@@ -325,7 +354,7 @@ SELECT create_policy_if_not_exists(
         WHERE orders.id = payments.order_id
         AND (
             orders.user_id = auth.uid() OR
-            EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND (role = ''admin'' OR role = ''staff''))
+            is_staff()
         )
     )'
 );
@@ -341,7 +370,7 @@ SELECT create_policy_if_not_exists(
         WHERE orders.id = payments.order_id
         AND (
             orders.user_id = auth.uid() OR
-            EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND (role = ''admin'' OR role = ''staff''))
+            is_staff()
         )
     )'
 );
@@ -434,7 +463,7 @@ FROM
     staff_operations
 WHERE 
     staff_id = auth.uid() OR
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin');
+    is_admin();
 
 -- 5. 管理员统计视图
 CREATE OR REPLACE VIEW api_admin_stats AS
@@ -456,7 +485,7 @@ CROSS JOIN
 CROSS JOIN 
     movies m
 WHERE
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin');
+    is_admin();
 
 -- 为视图授予权限
 GRANT SELECT ON api_public_movies TO movie_anonymous, movie_customer, movie_staff, movie_admin;
