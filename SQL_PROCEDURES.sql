@@ -551,6 +551,7 @@ DECLARE
     v_col INTEGER;
     v_seat_type seat_type;
     v_seats_created INTEGER := 0;
+    v_seat_exists BOOLEAN;
 BEGIN
     -- 获取场次对应的影厅信息
     SELECT t.* INTO v_theater
@@ -603,22 +604,32 @@ BEGIN
                 END IF;
             END IF;
             
-            -- 插入座位
-            INSERT INTO seats (
-                showtime_id,
-                row_num,
-                column_num,
-                seat_type,
-                is_available
-            ) VALUES (
-                p_showtime_id,
-                v_row,
-                v_col,
-                v_seat_type,
-                TRUE
-            );
+            -- 检查座位是否已存在
+            SELECT EXISTS (
+                SELECT 1 FROM seats 
+                WHERE showtime_id = p_showtime_id 
+                AND row_num = v_row 
+                AND column_num = v_col
+            ) INTO v_seat_exists;
             
-            v_seats_created := v_seats_created + 1;
+            -- 如果座位不存在，则插入新座位
+            IF NOT v_seat_exists THEN
+                -- 插入座位
+                INSERT INTO seats (
+                    showtime_id,
+                    row_num,
+                    column_num,
+                    seat_type,
+                    is_available
+                ) VALUES (
+                    p_showtime_id,
+                    v_row,
+                    v_col,
+                    v_seat_type,
+                    TRUE
+                );
+                v_seats_created := v_seats_created + 1;
+            END IF;
         END LOOP;
     END LOOP;
     

@@ -115,7 +115,7 @@ SELECT
     so.*,
     u.name AS staff_name,
     u.email AS staff_email,
-    o.id AS order_id,
+    o.id AS related_order_id,
     m.title AS movie_title,
     t.name AS theater_name,
     s.start_time

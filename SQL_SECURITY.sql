@@ -1,11 +1,69 @@
 -- 电影票务系统安全策略
 -- 适用于Supabase (PostgreSQL)
 
+-- 创建帮助函数：安全地创建策略
+CREATE OR REPLACE FUNCTION create_policy_if_not_exists(
+    policy_name TEXT,
+    table_name TEXT,
+    command TEXT DEFAULT NULL,
+    using_expr TEXT DEFAULT NULL,
+    check_expr TEXT DEFAULT NULL
+) RETURNS VOID AS $$
+DECLARE
+    sql TEXT;
+BEGIN
+    -- 检查策略是否已存在
+    IF EXISTS (
+        SELECT 1 FROM pg_policies 
+        WHERE tablename = table_name AND policyname = policy_name
+    ) THEN
+        -- 策略已存在，不做任何事情
+        RETURN;
+    END IF;
+    
+    -- 构建SQL语句
+    sql := 'CREATE POLICY ' || quote_ident(policy_name) || ' ON ' || quote_ident(table_name);
+    
+    -- 添加FOR子句
+    IF command IS NOT NULL THEN
+        sql := sql || ' FOR ' || command;
+    END IF;
+    
+    -- 添加USING子句（如果有）
+    IF using_expr IS NOT NULL THEN
+        sql := sql || ' USING (' || using_expr || ')';
+    END IF;
+    
+    -- 添加WITH CHECK子句（如果有）
+    IF check_expr IS NOT NULL THEN
+        sql := sql || ' WITH CHECK (' || check_expr || ')';
+    END IF;
+    
+    -- 执行SQL
+    EXECUTE sql;
+END;
+$$ LANGUAGE plpgsql;
+
 -- 创建角色
-CREATE ROLE movie_admin;
-CREATE ROLE movie_staff;
-CREATE ROLE movie_customer;
-CREATE ROLE movie_anonymous;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'movie_admin') THEN
+    CREATE ROLE movie_admin;
+  END IF;
+  
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'movie_staff') THEN
+    CREATE ROLE movie_staff;
+  END IF;
+  
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'movie_customer') THEN
+    CREATE ROLE movie_customer;
+  END IF;
+  
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'movie_anonymous') THEN
+    CREATE ROLE movie_anonymous;
+  END IF;
+END
+$$;
 
 -- 为管理员角色授予对所有表的完全访问权限
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO movie_admin;
@@ -32,199 +90,260 @@ ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 
 -- 1. 用户表安全策略
 -- 用户只能访问自己的信息
-CREATE POLICY users_select_policy ON users
-FOR SELECT USING (
-    auth.uid() = id OR  -- 自己的信息
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin') OR  -- 管理员
-    (role = 'staff' AND EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND (role = 'admin' OR role = 'staff')))  -- 工作人员可以查看其他工作人员
+SELECT create_policy_if_not_exists(
+    'users_select_policy',
+    'users',
+    'SELECT',
+    'auth.uid() = id OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = ''admin'') OR (role = ''staff'' AND EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND (role = ''admin'' OR role = ''staff'')))'
 );
 
 -- 用户只能更新自己的信息（管理员除外）
-CREATE POLICY users_update_policy ON users
-FOR UPDATE USING (
-    auth.uid() = id OR  -- 自己的信息
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')  -- 管理员
+SELECT create_policy_if_not_exists(
+    'users_update_policy',
+    'users',
+    'UPDATE',
+    'auth.uid() = id OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = ''admin'')'
 );
 
 -- 只有管理员可以插入或删除用户
-CREATE POLICY users_insert_policy ON users
-FOR INSERT WITH CHECK (
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+SELECT create_policy_if_not_exists(
+    'users_insert_policy',
+    'users',
+    'INSERT',
+    NULL,
+    'EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = ''admin'')'
 );
 
-CREATE POLICY users_delete_policy ON users
-FOR DELETE USING (
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+SELECT create_policy_if_not_exists(
+    'users_delete_policy',
+    'users',
+    'DELETE',
+    'EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = ''admin'')'
 );
 
 -- 2. 电影表安全策略
 -- 所有人都可以查看电影信息
-CREATE POLICY movies_select_policy ON movies
-FOR SELECT USING (true);
+SELECT create_policy_if_not_exists(
+    'movies_select_policy',
+    'movies',
+    'SELECT',
+    'true'
+);
 
 -- 只有管理员可以添加、修改、删除电影
-CREATE POLICY movies_admin_policy ON movies
-FOR ALL USING (
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+SELECT create_policy_if_not_exists(
+    'movies_admin_policy',
+    'movies',
+    'ALL',
+    'EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = ''admin'')'
 );
 
 -- 3. 影厅表安全策略
 -- 所有人都可以查看影厅信息
-CREATE POLICY theaters_select_policy ON theaters
-FOR SELECT USING (true);
+SELECT create_policy_if_not_exists(
+    'theaters_select_policy',
+    'theaters',
+    'SELECT',
+    'true'
+);
 
 -- 只有管理员可以添加、修改、删除影厅
-CREATE POLICY theaters_admin_policy ON theaters
-FOR ALL USING (
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+SELECT create_policy_if_not_exists(
+    'theaters_admin_policy',
+    'theaters',
+    'ALL',
+    'EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = ''admin'')'
 );
 
 -- 4. 座位布局表安全策略
 -- 所有人都可以查看座位布局
-CREATE POLICY theater_seat_layouts_select_policy ON theater_seat_layouts
-FOR SELECT USING (true);
+SELECT create_policy_if_not_exists(
+    'theater_seat_layouts_select_policy',
+    'theater_seat_layouts',
+    'SELECT',
+    'true'
+);
 
 -- 只有管理员可以添加、修改、删除座位布局
-CREATE POLICY theater_seat_layouts_admin_policy ON theater_seat_layouts
-FOR ALL USING (
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+SELECT create_policy_if_not_exists(
+    'theater_seat_layouts_admin_policy',
+    'theater_seat_layouts',
+    'ALL',
+    'EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = ''admin'')'
 );
 
 -- 5. 场次表安全策略
 -- 所有人都可以查看场次信息
-CREATE POLICY showtimes_select_policy ON showtimes
-FOR SELECT USING (true);
+SELECT create_policy_if_not_exists(
+    'showtimes_select_policy',
+    'showtimes',
+    'SELECT',
+    'true'
+);
 
 -- 只有管理员可以添加、修改、删除场次
-CREATE POLICY showtimes_admin_policy ON showtimes
-FOR ALL USING (
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+SELECT create_policy_if_not_exists(
+    'showtimes_admin_policy',
+    'showtimes',
+    'ALL',
+    'EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = ''admin'')'
 );
 
 -- 6. 座位表安全策略
 -- 所有人都可以查看座位信息
-CREATE POLICY seats_select_policy ON seats
-FOR SELECT USING (true);
+SELECT create_policy_if_not_exists(
+    'seats_select_policy',
+    'seats',
+    'SELECT',
+    'true'
+);
 
 -- 管理员和工作人员可以更新座位状态
-CREATE POLICY seats_update_policy ON seats
-FOR UPDATE USING (
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND (role = 'admin' OR role = 'staff'))
+SELECT create_policy_if_not_exists(
+    'seats_update_policy',
+    'seats',
+    'UPDATE',
+    'EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND (role = ''admin'' OR role = ''staff''))'
 );
 
 -- 只有管理员可以添加或删除座位
-CREATE POLICY seats_admin_policy ON seats
-FOR ALL USING (
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+SELECT create_policy_if_not_exists(
+    'seats_admin_policy',
+    'seats',
+    'ALL',
+    'EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = ''admin'')'
 );
 
 -- 7. 订单表安全策略
 -- 用户只能查看自己的订单
-CREATE POLICY orders_select_policy ON orders
-FOR SELECT USING (
-    user_id = auth.uid() OR  -- 自己的订单
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND (role = 'admin' OR role = 'staff'))  -- 管理员和工作人员
+SELECT create_policy_if_not_exists(
+    'orders_select_policy',
+    'orders',
+    'SELECT',
+    'user_id = auth.uid() OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND (role = ''admin'' OR role = ''staff''))'
 );
 
 -- 用户只能创建自己的订单
-CREATE POLICY orders_insert_policy ON orders
-FOR INSERT WITH CHECK (
-    user_id = auth.uid() OR  -- 自己的订单
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND (role = 'admin' OR role = 'staff'))  -- 管理员和工作人员可以代客户创建
+SELECT create_policy_if_not_exists(
+    'orders_insert_policy',
+    'orders',
+    'INSERT',
+    NULL,
+    'user_id = auth.uid() OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND (role = ''admin'' OR role = ''staff''))'
 );
 
 -- 用户只能更新自己的待支付订单
-CREATE POLICY orders_update_customer_policy ON orders
-FOR UPDATE USING (
-    user_id = auth.uid() AND status = 'pending'
+SELECT create_policy_if_not_exists(
+    'orders_update_customer_policy',
+    'orders',
+    'UPDATE',
+    'user_id = auth.uid() AND status = ''pending'''
 );
 
 -- 管理员和工作人员可以更新所有订单
-CREATE POLICY orders_update_staff_policy ON orders
-FOR UPDATE USING (
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND (role = 'admin' OR role = 'staff'))
+SELECT create_policy_if_not_exists(
+    'orders_update_staff_policy',
+    'orders',
+    'UPDATE',
+    'EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND (role = ''admin'' OR role = ''staff''))'
 );
 
 -- 8. 订单座位关联表安全策略
 -- 与订单表相同的安全策略
-CREATE POLICY order_seats_select_policy ON order_seats
-FOR SELECT USING (
-    EXISTS (
+SELECT create_policy_if_not_exists(
+    'order_seats_select_policy',
+    'order_seats',
+    'SELECT',
+    'EXISTS (
         SELECT 1 FROM orders
         WHERE orders.id = order_seats.order_id
         AND (
             orders.user_id = auth.uid() OR
-            EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND (role = 'admin' OR role = 'staff'))
+            EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND (role = ''admin'' OR role = ''staff''))
         )
-    )
+    )'
 );
 
-CREATE POLICY order_seats_insert_policy ON order_seats
-FOR INSERT WITH CHECK (
-    EXISTS (
+SELECT create_policy_if_not_exists(
+    'order_seats_insert_policy',
+    'order_seats',
+    'INSERT',
+    NULL,
+    'EXISTS (
         SELECT 1 FROM orders
         WHERE orders.id = order_seats.order_id
         AND (
             orders.user_id = auth.uid() OR
-            EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND (role = 'admin' OR role = 'staff'))
+            EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND (role = ''admin'' OR role = ''staff''))
         )
-    )
+    )'
 );
 
 -- 9. 工作人员操作记录表安全策略
 -- 工作人员只能查看自己的操作记录
-CREATE POLICY staff_operations_select_policy ON staff_operations
-FOR SELECT USING (
-    staff_id = auth.uid() OR  -- 自己的操作记录
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')  -- 管理员可以查看所有
+SELECT create_policy_if_not_exists(
+    'staff_operations_select_policy',
+    'staff_operations',
+    'SELECT',
+    'staff_id = auth.uid() OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = ''admin'')'
 );
 
 -- 工作人员只能创建自己的操作记录
-CREATE POLICY staff_operations_insert_policy ON staff_operations
-FOR INSERT WITH CHECK (
-    staff_id = auth.uid() OR  -- 自己的操作记录
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')  -- 管理员可以创建任何人的
+SELECT create_policy_if_not_exists(
+    'staff_operations_insert_policy',
+    'staff_operations',
+    'INSERT',
+    NULL,
+    'staff_id = auth.uid() OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = ''admin'')'
 );
 
 -- 10. 工作人员排班表安全策略
 -- 工作人员只能查看自己的排班
-CREATE POLICY staff_schedules_select_policy ON staff_schedules
-FOR SELECT USING (
-    staff_id = auth.uid() OR  -- 自己的排班
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')  -- 管理员可以查看所有
+SELECT create_policy_if_not_exists(
+    'staff_schedules_select_policy',
+    'staff_schedules',
+    'SELECT',
+    'staff_id = auth.uid() OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = ''admin'')'
 );
 
 -- 只有管理员可以添加、修改、删除排班
-CREATE POLICY staff_schedules_admin_policy ON staff_schedules
-FOR ALL USING (
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+SELECT create_policy_if_not_exists(
+    'staff_schedules_admin_policy',
+    'staff_schedules',
+    'ALL',
+    'EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = ''admin'')'
 );
 
 -- 11. 支付记录表安全策略
 -- 用户只能查看自己的支付记录
-CREATE POLICY payments_select_policy ON payments
-FOR SELECT USING (
-    EXISTS (
+SELECT create_policy_if_not_exists(
+    'payments_select_policy',
+    'payments',
+    'SELECT',
+    'EXISTS (
         SELECT 1 FROM orders
         WHERE orders.id = payments.order_id
         AND (
             orders.user_id = auth.uid() OR
-            EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND (role = 'admin' OR role = 'staff'))
+            EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND (role = ''admin'' OR role = ''staff''))
         )
-    )
+    )'
 );
 
 -- 用户只能创建自己的支付记录
-CREATE POLICY payments_insert_policy ON payments
-FOR INSERT WITH CHECK (
-    EXISTS (
+SELECT create_policy_if_not_exists(
+    'payments_insert_policy',
+    'payments',
+    'INSERT',
+    NULL,
+    'EXISTS (
         SELECT 1 FROM orders
         WHERE orders.id = payments.order_id
         AND (
             orders.user_id = auth.uid() OR
-            EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND (role = 'admin' OR role = 'staff'))
+            EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND (role = ''admin'' OR role = ''staff''))
         )
-    )
+    )'
 );
 
 -- 授予权限到角色

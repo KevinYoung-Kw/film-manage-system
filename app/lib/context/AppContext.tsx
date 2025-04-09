@@ -343,9 +343,26 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
     setSelectedSeats([]);
   }, []);
 
+  // 获取工作人员操作记录
+  const getStaffOperations = useCallback(async (staffId?: string): Promise<StaffOperation[]> => {
+    try {
+      let operations;
+      if (staffId) {
+        operations = await StaffOperationService.getOperationsByStaffId(staffId);
+      } else {
+        operations = await StaffOperationService.getAllOperations();
+      }
+      
+      setStaffOperations(operations);
+      return operations;
+    } catch (error) {
+      console.error('获取操作记录失败:', error);
+      return [];
+    }
+  }, []);
+
   // 刷新数据
   const refreshData = useCallback(async () => {
-    isInitialized.current = false;
     setIsLoading(true);
     try {
       const [moviesData, theatersData, showtimesData, todayShowtimesData] = await Promise.all([
@@ -369,24 +386,40 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
           userOrders = await OrderService.getAllOrders();
         }
         setOrders(userOrders);
+        
+        // 如果是工作人员或管理员，获取操作记录
+        if (currentUser.role === UserRole.STAFF || currentUser.role === UserRole.ADMIN) {
+          const operations = await getStaffOperations();
+          setStaffOperations(operations);
+        }
       }
-      
-      isInitialized.current = true;
     } catch (error) {
-      console.error('加载数据失败:', error);
+      console.error('刷新数据失败:', error);
     } finally {
       setIsLoading(false);
     }
-  }, [currentUser]);
+  }, [currentUser, getStaffOperations]);
 
   // 搜索电影
   const searchMovies = useCallback(async (query: string): Promise<Movie[]> => {
-    return await MovieService.getMoviesByFilter({ search: query });
+    try {
+      const results = await MovieService.getMoviesByFilter({ search: query });
+      return results;
+    } catch (error) {
+      console.error('搜索电影失败:', error);
+      return [];
+    }
   }, []);
 
-  // 获取电影的场次
+  // 获取电影场次
   const getShowtimesForMovie = useCallback(async (movieId: string): Promise<Showtime[]> => {
-    return await ShowtimeService.getShowtimesByMovieId(movieId);
+    try {
+      const results = await ShowtimeService.getShowtimesByMovieId(movieId);
+      return results;
+    } catch (error) {
+      console.error('获取电影场次失败:', error);
+      return [];
+    }
   }, []);
 
   // 创建订单
@@ -675,23 +708,6 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
       return false;
     }
   }, [userRole]);
-
-  // 获取工作人员操作记录
-  const getStaffOperations = useCallback(async (staffId?: string): Promise<StaffOperation[]> => {
-    try {
-      let operations;
-      if (staffId) {
-        operations = await StaffOperationService.getOperationsByStaffId(staffId);
-      } else {
-        operations = await StaffOperationService.getAllOperations();
-      }
-      setStaffOperations(operations);
-      return operations;
-    } catch (error) {
-      console.error('获取工作人员操作记录失败:', error);
-      return [];
-    }
-  }, []);
 
   // 售票操作
   const sellTicket = useCallback(async (

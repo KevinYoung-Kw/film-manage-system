@@ -55,7 +55,7 @@ INSERT INTO users (id, name, email, password_hash, role, created_at) VALUES
 );
 
 -- 插入电影数据
-INSERT INTO movies (id, title, original_title, poster, webp_poster, duration, director, actors, cast, description, release_date, genre, rating, status) VALUES
+INSERT INTO movies (id, title, original_title, poster, webp_poster, duration, director, actors, "cast", description, release_date, genre, rating, status) VALUES
 (
     '00000000-0000-0000-0000-000000000101',
     '星际迷航：超越边界',

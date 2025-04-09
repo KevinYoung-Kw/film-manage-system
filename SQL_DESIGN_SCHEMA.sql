@@ -5,14 +5,49 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- 创建枚举类型
-CREATE TYPE user_role AS ENUM ('admin', 'staff', 'customer');
-CREATE TYPE movie_status AS ENUM ('showing', 'coming_soon', 'off_showing');
-CREATE TYPE ticket_type AS ENUM ('normal', 'student', 'senior', 'child');
-CREATE TYPE order_status AS ENUM ('pending', 'paid', 'cancelled', 'refunded');
-CREATE TYPE ticket_status AS ENUM ('unused', 'used', 'expired', 'soon', 'now', 'late');
-CREATE TYPE staff_operation_type AS ENUM ('sell', 'check', 'refund', 'modify');
-CREATE TYPE shift_type AS ENUM ('morning', 'afternoon', 'evening');
-CREATE TYPE seat_type AS ENUM ('normal', 'vip', 'couple', 'disabled');
+DO $$
+BEGIN
+    -- 检查并创建user_role枚举类型
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+        CREATE TYPE user_role AS ENUM ('admin', 'staff', 'customer');
+    END IF;
+    
+    -- 检查并创建movie_status枚举类型
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'movie_status') THEN
+        CREATE TYPE movie_status AS ENUM ('showing', 'coming_soon', 'off_showing');
+    END IF;
+    
+    -- 检查并创建ticket_type枚举类型
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ticket_type') THEN
+        CREATE TYPE ticket_type AS ENUM ('normal', 'student', 'senior', 'child');
+    END IF;
+    
+    -- 检查并创建order_status枚举类型
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'order_status') THEN
+        CREATE TYPE order_status AS ENUM ('pending', 'paid', 'cancelled', 'refunded');
+    END IF;
+    
+    -- 检查并创建ticket_status枚举类型
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ticket_status') THEN
+        CREATE TYPE ticket_status AS ENUM ('unused', 'used', 'expired', 'soon', 'now', 'late');
+    END IF;
+    
+    -- 检查并创建staff_operation_type枚举类型
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'staff_operation_type') THEN
+        CREATE TYPE staff_operation_type AS ENUM ('sell', 'check', 'refund', 'modify');
+    END IF;
+    
+    -- 检查并创建shift_type枚举类型
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'shift_type') THEN
+        CREATE TYPE shift_type AS ENUM ('morning', 'afternoon', 'evening');
+    END IF;
+    
+    -- 检查并创建seat_type枚举类型
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'seat_type') THEN
+        CREATE TYPE seat_type AS ENUM ('normal', 'vip', 'couple', 'disabled');
+    END IF;
+END
+$$;
 
 -- 用户表
 CREATE TABLE IF NOT EXISTS users (
@@ -28,8 +63,8 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- 创建索引
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_role ON users(role);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 
 -- 电影表
 CREATE TABLE IF NOT EXISTS movies (
@@ -41,7 +76,7 @@ CREATE TABLE IF NOT EXISTS movies (
     duration INTEGER NOT NULL,  -- 以分钟为单位
     director VARCHAR(100) NOT NULL,
     actors TEXT[] NOT NULL,
-    cast TEXT[],
+    "cast" TEXT[],
     description TEXT NOT NULL,
     release_date DATE NOT NULL,
     genre TEXT[] NOT NULL,
@@ -52,9 +87,9 @@ CREATE TABLE IF NOT EXISTS movies (
 );
 
 -- 创建索引
-CREATE INDEX idx_movies_title ON movies(title);
-CREATE INDEX idx_movies_status ON movies(status);
-CREATE INDEX idx_movies_release_date ON movies(release_date);
+CREATE INDEX IF NOT EXISTS idx_movies_title ON movies(title);
+CREATE INDEX IF NOT EXISTS idx_movies_status ON movies(status);
+CREATE INDEX IF NOT EXISTS idx_movies_release_date ON movies(release_date);
 
 -- 影厅表
 CREATE TABLE IF NOT EXISTS theaters (
@@ -69,7 +104,7 @@ CREATE TABLE IF NOT EXISTS theaters (
 );
 
 -- 创建索引
-CREATE INDEX idx_theaters_name ON theaters(name);
+CREATE INDEX IF NOT EXISTS idx_theaters_name ON theaters(name);
 
 -- 座位类型布局表
 CREATE TABLE IF NOT EXISTS theater_seat_layouts (
@@ -81,7 +116,7 @@ CREATE TABLE IF NOT EXISTS theater_seat_layouts (
 );
 
 -- 创建索引
-CREATE INDEX idx_theater_seat_layouts_theater_id ON theater_seat_layouts(theater_id);
+CREATE INDEX IF NOT EXISTS idx_theater_seat_layouts_theater_id ON theater_seat_layouts(theater_id);
 
 -- 电影场次表
 CREATE TABLE IF NOT EXISTS showtimes (
@@ -100,9 +135,9 @@ CREATE TABLE IF NOT EXISTS showtimes (
 );
 
 -- 创建索引
-CREATE INDEX idx_showtimes_movie_id ON showtimes(movie_id);
-CREATE INDEX idx_showtimes_theater_id ON showtimes(theater_id);
-CREATE INDEX idx_showtimes_start_time ON showtimes(start_time);
+CREATE INDEX IF NOT EXISTS idx_showtimes_movie_id ON showtimes(movie_id);
+CREATE INDEX IF NOT EXISTS idx_showtimes_theater_id ON showtimes(theater_id);
+CREATE INDEX IF NOT EXISTS idx_showtimes_start_time ON showtimes(start_time);
 
 -- 座位表 (为每个场次存储座位状态)
 CREATE TABLE IF NOT EXISTS seats (
@@ -118,8 +153,8 @@ CREATE TABLE IF NOT EXISTS seats (
 );
 
 -- 创建索引
-CREATE INDEX idx_seats_showtime_id ON seats(showtime_id);
-CREATE INDEX idx_seats_availability ON seats(showtime_id, is_available);
+CREATE INDEX IF NOT EXISTS idx_seats_showtime_id ON seats(showtime_id);
+CREATE INDEX IF NOT EXISTS idx_seats_availability ON seats(showtime_id, is_available);
 
 -- 订单表
 CREATE TABLE IF NOT EXISTS orders (
@@ -138,10 +173,10 @@ CREATE TABLE IF NOT EXISTS orders (
 );
 
 -- 创建索引
-CREATE INDEX idx_orders_user_id ON orders(user_id);
-CREATE INDEX idx_orders_showtime_id ON orders(showtime_id);
-CREATE INDEX idx_orders_status ON orders(status);
-CREATE INDEX idx_orders_created_at ON orders(created_at);
+CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_orders_showtime_id ON orders(showtime_id);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);
 
 -- 订单座位关联表 (多对多关系)
 CREATE TABLE IF NOT EXISTS order_seats (
@@ -153,8 +188,8 @@ CREATE TABLE IF NOT EXISTS order_seats (
 );
 
 -- 创建索引
-CREATE INDEX idx_order_seats_order_id ON order_seats(order_id);
-CREATE INDEX idx_order_seats_seat_id ON order_seats(seat_id);
+CREATE INDEX IF NOT EXISTS idx_order_seats_order_id ON order_seats(order_id);
+CREATE INDEX IF NOT EXISTS idx_order_seats_seat_id ON order_seats(seat_id);
 
 -- 工作人员操作记录表
 CREATE TABLE IF NOT EXISTS staff_operations (
@@ -168,10 +203,10 @@ CREATE TABLE IF NOT EXISTS staff_operations (
 );
 
 -- 创建索引
-CREATE INDEX idx_staff_operations_staff_id ON staff_operations(staff_id);
-CREATE INDEX idx_staff_operations_order_id ON staff_operations(order_id);
-CREATE INDEX idx_staff_operations_type ON staff_operations(operation_type);
-CREATE INDEX idx_staff_operations_created_at ON staff_operations(created_at);
+CREATE INDEX IF NOT EXISTS idx_staff_operations_staff_id ON staff_operations(staff_id);
+CREATE INDEX IF NOT EXISTS idx_staff_operations_order_id ON staff_operations(order_id);
+CREATE INDEX IF NOT EXISTS idx_staff_operations_type ON staff_operations(operation_type);
+CREATE INDEX IF NOT EXISTS idx_staff_operations_created_at ON staff_operations(created_at);
 
 -- 工作人员排班表
 CREATE TABLE IF NOT EXISTS staff_schedules (
@@ -186,8 +221,8 @@ CREATE TABLE IF NOT EXISTS staff_schedules (
 );
 
 -- 创建索引
-CREATE INDEX idx_staff_schedules_staff_id ON staff_schedules(staff_id);
-CREATE INDEX idx_staff_schedules_date ON staff_schedules(schedule_date);
+CREATE INDEX IF NOT EXISTS idx_staff_schedules_staff_id ON staff_schedules(staff_id);
+CREATE INDEX IF NOT EXISTS idx_staff_schedules_date ON staff_schedules(schedule_date);
 
 -- 轮播图表
 CREATE TABLE IF NOT EXISTS banners (
@@ -204,8 +239,8 @@ CREATE TABLE IF NOT EXISTS banners (
 );
 
 -- 创建索引
-CREATE INDEX idx_banners_is_active ON banners(is_active);
-CREATE INDEX idx_banners_order_num ON banners(order_num);
+CREATE INDEX IF NOT EXISTS idx_banners_is_active ON banners(is_active);
+CREATE INDEX IF NOT EXISTS idx_banners_order_num ON banners(order_num);
 
 -- 公告表
 CREATE TABLE IF NOT EXISTS announcements (
@@ -220,8 +255,8 @@ CREATE TABLE IF NOT EXISTS announcements (
 );
 
 -- 创建索引
-CREATE INDEX idx_announcements_is_active ON announcements(is_active);
-CREATE INDEX idx_announcements_date_range ON announcements(start_date, end_date);
+CREATE INDEX IF NOT EXISTS idx_announcements_is_active ON announcements(is_active);
+CREATE INDEX IF NOT EXISTS idx_announcements_date_range ON announcements(start_date, end_date);
 
 -- 常见问题表
 CREATE TABLE IF NOT EXISTS faqs (
@@ -235,8 +270,8 @@ CREATE TABLE IF NOT EXISTS faqs (
 );
 
 -- 创建索引
-CREATE INDEX idx_faqs_category ON faqs(category);
-CREATE INDEX idx_faqs_order_num ON faqs(order_num);
+CREATE INDEX IF NOT EXISTS idx_faqs_category ON faqs(category);
+CREATE INDEX IF NOT EXISTS idx_faqs_order_num ON faqs(order_num);
 
 -- 支付方式表
 CREATE TABLE IF NOT EXISTS payment_methods (
@@ -250,8 +285,8 @@ CREATE TABLE IF NOT EXISTS payment_methods (
 );
 
 -- 创建索引
-CREATE INDEX idx_payment_methods_code ON payment_methods(code);
-CREATE INDEX idx_payment_methods_is_active ON payment_methods(is_active);
+CREATE INDEX IF NOT EXISTS idx_payment_methods_code ON payment_methods(code);
+CREATE INDEX IF NOT EXISTS idx_payment_methods_is_active ON payment_methods(is_active);
 
 -- 支付记录表
 CREATE TABLE IF NOT EXISTS payments (
@@ -266,5 +301,5 @@ CREATE TABLE IF NOT EXISTS payments (
 );
 
 -- 创建索引
-CREATE INDEX idx_payments_order_id ON payments(order_id);
-CREATE INDEX idx_payments_status ON payments(status); 
+CREATE INDEX IF NOT EXISTS idx_payments_order_id ON payments(order_id);
+CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status); 
