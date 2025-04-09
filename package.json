@@ -10,11 +10,17 @@
   },
   "dependencies": {
     "@headlessui/react": "^2.2.1",
-    "@supabase/supabase-js": "^2.42.0",
+    "@libsql/client": "^0.15.2",
+    "@supabase/supabase-js": "^2.49.4",
+    "@types/bcrypt": "^5.0.2",
+    "bcrypt": "^5.1.1",
     "classnames": "^2.5.1",
     "date-fns": "^4.1.0",
+    "drizzle-kit": "^0.30.6",
+    "drizzle-orm": "^0.41.0",
     "lucide-react": "^0.487.0",
     "next": "15.2.4",
+    "pg": "^8.14.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hot-toast": "^2.5.2",
@@ -25,11 +31,14 @@
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.11.11",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^16.4.7",
     "eslint": "^9",
     "eslint-config-next": "15.2.4",
     "tailwindcss": "^4",
+    "ts-node": "^10.9.2",
     "typescript": "^5"
   }
 }
