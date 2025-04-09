@@ -5,7 +5,7 @@ import MobileLayout from '@/app/components/layout/MobileLayout';
 import MovieCard from '@/app/components/MovieCard';
 import TabGroup from '@/app/components/ui/TabGroup';
 import { Search } from 'lucide-react';
-import { MovieService } from '@/app/lib/services/dataService';
+import { MovieService } from '@/app/lib/services/movieService';
 import { Movie } from '@/app/lib/types';
 
 export default function UserMoviesPage() {

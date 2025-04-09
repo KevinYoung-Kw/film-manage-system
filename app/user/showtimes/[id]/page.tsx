@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { MovieService, ShowtimeService, TheaterService } from '@/app/lib/services/dataService';
+import { MovieService, ShowtimeService, TheaterService } from '@services/dataService';
 import { Movie, Showtime, Theater } from '@/app/lib/types';
 import ShowtimeDetailClient from './ShowtimeDetailClient';
 import { useAppContext } from '@/app/lib/context/AppContext';

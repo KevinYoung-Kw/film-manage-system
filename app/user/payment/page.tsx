@@ -11,7 +11,7 @@ import { CreditCard, AlertCircle, Check, X } from 'lucide-react';
 import { mockShowtimes, mockMovies, mockTheaters, defaultImages } from '@/app/lib/mockData';
 import { OrderStatus, TicketType } from '@/app/lib/types';
 import { userRoutes } from '@/app/lib/utils/navigation';
-import { PaymentMethod, PaymentStatus } from '@/app/lib/services/paymentService';
+import { PaymentMethod, PaymentStatus } from '@services/paymentService';
 import { useAppContext } from '@/app/lib/context/AppContext';
 
 // 创建一个使用 useSearchParams 的组件，这样可以在 Suspense 边界中使用它

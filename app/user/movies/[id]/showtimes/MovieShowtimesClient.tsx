@@ -11,7 +11,7 @@ import Button from '@/app/components/ui/Button';
 import TabGroup from '@/app/components/ui/TabGroup';
 import { defaultImages } from '@/app/lib/mockData';
 import { TicketType, Movie } from '@/app/lib/types';
-import { ShowtimeService, TheaterService } from '@/app/lib/services/dataService';
+import { ShowtimeService, TheaterService } from '@services/dataService';
 import { userRoutes } from '@/app/lib/utils/navigation';
 import { useRef } from 'react';
 

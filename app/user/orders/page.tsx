@@ -12,6 +12,7 @@ import Button from '@/app/components/ui/Button';
 import { Order, OrderStatus, TicketStatus } from '@/app/lib/types';
 import { useAppContext } from '@/app/lib/context/AppContext';
 import { defaultImages } from '@/app/lib/mockData';
+import { processImageUrl } from '@/app/lib/services/dataService';
 
 // 扩展Order类型以包含前端需要的额外数据
 interface ExtendedOrder extends Order {
@@ -569,24 +570,26 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onCancel }) => {
   })();
   
   const moviePoster = (() => {
+    let posterUrl = '';
+    
     // 优先使用直接的电影对象中的海报
     if (order.movie) {
-      if (order.movie.webpPoster) return order.movie.webpPoster;
-      if (order.movie.poster) return order.movie.poster;
+      if (order.movie.webpPoster) posterUrl = order.movie.webpPoster;
+      else if (order.movie.poster) posterUrl = order.movie.poster;
     }
     
     // 然后尝试订单扩展字段中的海报URL
-    if (order.moviePoster) {
-      // 如果是完整URL，直接使用
-      if (order.moviePoster.startsWith('http') || order.moviePoster.startsWith('https')) {
-        return order.moviePoster;
-      }
-      // 否则使用相对路径
-      return order.moviePoster;
+    if (!posterUrl && order.moviePoster) {
+      posterUrl = order.moviePoster;
     }
     
-    // 最后使用默认图片
-    return defaultImages.moviePoster;
+    // 如果没有获取到海报，使用默认图片
+    if (!posterUrl) {
+      posterUrl = defaultImages.moviePoster;
+    }
+    
+    // 使用processImageUrl处理图片路径
+    return processImageUrl(posterUrl);
   })();
   
   return (

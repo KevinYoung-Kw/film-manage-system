@@ -12,7 +12,8 @@
  * @returns 处理后的URL
  */
 export const processImageUrl = (url: string): string => {
-  if (!url) return '';
+  // 如果URL为空，返回默认图片
+  if (!url) return '/images/default-poster.jpg';
   
   // 如果已经是完整URL，直接返回
   if (url.startsWith('http://') || url.startsWith('https://')) {

@@ -10,7 +10,7 @@ import { defaultImages } from '@/app/lib/mockData';
 import { Film, Calendar, Ticket, ChevronRight } from 'lucide-react';
 import { MovieStatus, Movie } from '@/app/lib/types';
 import { useAppContext } from '@/app/lib/context/AppContext';
-import { processBannerUrl } from '@/app/lib/services/dataService';
+import { processImageUrl } from '@/app/lib/services/dataService';
 import supabase from '@/app/lib/services/supabaseClient';
 
 export default function UserHome() {
@@ -67,6 +67,11 @@ export default function UserHome() {
     }
   }, [movies]);
   
+  // 获取有效的banner图片URL
+  const bannerImageUrl = featuredBanner 
+    ? processImageUrl(featuredBanner.imageUrl) 
+    : '/images/default-banner.webp';
+  
   return (
     <MobileLayout title="首页" showBackButton={false}>
       {/* 热门banner */}
@@ -74,7 +79,7 @@ export default function UserHome() {
         {featuredBanner ? (
           <>
             <Image
-              src={processBannerUrl(featuredBanner)}
+              src={bannerImageUrl}
               alt={featuredBanner.title || "电影banner"}
               fill
               className="object-cover"

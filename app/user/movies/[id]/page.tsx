@@ -9,7 +9,9 @@ import { Star, Clock, Calendar, Film, User, ChevronDown } from 'lucide-react';
 import MobileLayout from '@/app/components/layout/MobileLayout';
 import { defaultImages } from '@/app/lib/mockData';
 import { Card } from '@/app/components/ui/Card';
-import { MovieService, ShowtimeService, TheaterService } from '@/app/lib/services/dataService';
+import { MovieService } from '@/app/lib/services/movieService';
+import { ShowtimeService } from '@/app/lib/services/showtimeService';
+import { TheaterService } from '@/app/lib/services/theaterService';
 import { userRoutes } from '@/app/lib/utils/navigation';
 import { Movie, Showtime, Theater } from '@/app/lib/types';
 
