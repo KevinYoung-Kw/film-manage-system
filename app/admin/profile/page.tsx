@@ -9,21 +9,15 @@ import { User, BarChart, Film, Calendar, Settings, LogOut, Users, DollarSign } f
 import MobileLayout from '@/app/components/layout/MobileLayout';
 import { Card } from '@/app/components/ui/Card';
 import Button from '@/app/components/ui/Button';
-import { mockUsers, mockAdminStats } from '@/app/lib/mockData';
+import { mockAdminStats } from '@/app/lib/mockData';
 import { userRoutes } from '@/app/lib/utils/navigation';
 import { useAppContext } from '@/app/lib/context/AppContext';
 
 export default function AdminProfilePage() {
-  const [currentUser, setCurrentUser] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
-  const { logout } = useAppContext();
+  const { currentUser, logout } = useAppContext();
   
   useEffect(() => {
-    // 假设当前登录的管理员ID是admin1
-    const adminId = 'admin1';
-    const user = mockUsers.find(u => u.id === adminId);
-    setCurrentUser(user);
-    
     // 获取统计数据
     setStats(mockAdminStats);
   }, []);

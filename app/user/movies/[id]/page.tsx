@@ -105,7 +105,8 @@ export default function UserMovieDetail() {
         setError(null);
         logDebug("[DEBUG] 开始获取电影数据, ID:", movieId);
         
-        // 获取电影数据
+        // 获取电影数据并添加更多调试信息
+        logDebug("[DEBUG] 调用 MovieService.getMovieById, URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
         const movieData = await MovieService.getMovieById(movieId);
         
         if (!movieData) {
@@ -115,7 +116,7 @@ export default function UserMovieDetail() {
           return;
         }
         
-        logDebug("[DEBUG] 成功获取电影数据:", movieData.title);
+        logDebug("[DEBUG] 成功获取电影数据:", movieData);
         setMovie(movieData);
         
         try {
@@ -215,7 +216,7 @@ export default function UserMovieDetail() {
         <div className="relative w-full h-60 overflow-hidden shadow-lg">
           <Image
             src={posterSrc}
-            alt={movie.title}
+            alt={movie.title || '电影海报'}
             fill
             className="object-cover"
             priority
@@ -236,7 +237,7 @@ export default function UserMovieDetail() {
                   <span className="text-sm">{movie.rating.toFixed(1)}</span>
                 </div>
                 <p className="text-white/80 text-sm mt-1">
-                  {movie.genre.join(' / ')} | {movie.duration}分钟
+                  {movie.genre && Array.isArray(movie.genre) ? movie.genre.join(' / ') : '未分类'} | {movie.duration}分钟
                 </p>
                 <p className="text-white/70 text-xs mt-1">
                   {isValidDate(movie.releaseDate) ? 
@@ -271,15 +272,15 @@ export default function UserMovieDetail() {
           <div className="mt-4 space-y-3">
             <div className="flex">
               <div className="w-16 text-slate-500 text-sm">导演</div>
-              <div className="flex-1 text-sm">{movie.director}</div>
+              <div className="flex-1 text-sm">{movie.director || '未知'}</div>
             </div>
             <div className="flex">
               <div className="w-16 text-slate-500 text-sm">演员</div>
-              <div className="flex-1 text-sm">{movie.actors.join('、')}</div>
+              <div className="flex-1 text-sm">{movie.actors && Array.isArray(movie.actors) ? movie.actors.join('、') : '未知'}</div>
             </div>
             <div className="flex">
               <div className="w-16 text-slate-500 text-sm">类型</div>
-              <div className="flex-1 text-sm">{movie.genre.join('、')}</div>
+              <div className="flex-1 text-sm">{movie.genre && Array.isArray(movie.genre) ? movie.genre.join('、') : '未分类'}</div>
             </div>
             <div className="flex">
               <div className="w-16 text-slate-500 text-sm">片长</div>

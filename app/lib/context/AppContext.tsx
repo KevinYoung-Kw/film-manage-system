@@ -1,8 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
-import { Movie, Theater, Showtime, Order, User, UserRole, TicketType, OrderStatus, StaffOperation, StaffOperationType } from '../types';
-import { MovieService, TheaterService, ShowtimeService, OrderService, UserService, StaffOperationService } from '../services/dataService';
+import { Movie, Theater, Showtime, Order, User, UserRole, TicketType, OrderStatus, StaffOperation, StaffOperationType, StaffSchedule } from '../types';
+import { MovieService, TheaterService, ShowtimeService, OrderService, UserService, StaffOperationService, StaffScheduleService } from '../services/dataService';
 import { AuthService } from '../services/authService';
 import { useRouter, usePathname } from 'next/navigation';
 
@@ -53,7 +53,7 @@ interface AppContextState {
   addMovie: (movie: Omit<Movie, 'id'>) => Promise<Movie | null>;
   updateMovie: (id: string, movie: Partial<Movie>) => Promise<Movie | null>;
   deleteMovie: (id: string) => Promise<boolean>;
-  addShowtime: (showtime: Omit<Showtime, 'id'>) => Promise<Showtime | null>;
+  addShowtime: (showtime: Omit<Showtime, 'id' | 'availableSeats'>) => Promise<Showtime | null>;
   updateShowtime: (id: string, showtime: Partial<Showtime>) => Promise<Showtime | null>;
   deleteShowtime: (id: string) => Promise<boolean>;
   
@@ -61,13 +61,16 @@ interface AppContextState {
   addTheater: (theater: Omit<Theater, 'id'>) => Promise<Theater | null>;
   updateTheater: (id: string, theater: Partial<Theater>) => Promise<Theater | null>;
   deleteTheater: (id: string) => Promise<boolean>;
-  updateTheaterLayout: (id: string, rows: number, columns: number) => Promise<Theater | null>;
-  getSeatLayoutTypes: (theaterId: string) => Promise<Array<Array<string>> | null>;
+  updateTheaterLayout: (theaterId: string, rows: number, columns: number) => Promise<Theater | null>;
+  getSeatLayoutTypes: (theaterId: string) => Array<Array<string>>;
   updateSeatLayoutTypes: (theaterId: string, layout: Array<Array<string>>) => Promise<boolean>;
   
   // 工作人员方法
   staffOperations: StaffOperation[];
-  getStaffOperations: (staffId?: string) => Promise<StaffOperation[]>;
+  staffSchedules: StaffSchedule[];
+  getStaffOperations: () => Promise<StaffOperation[]>;
+  getStaffSchedules: (staffId?: string) => Promise<StaffSchedule[]>;
+  getUpcomingStaffSchedules: (staffId: string) => Promise<StaffSchedule[]>;
   sellTicket: (showtimeId: string, seats: string[], ticketType: TicketType, paymentMethod: string) => Promise<Order | null>;
   checkTicket: (orderId: string) => Promise<{ success: boolean; message: string }>;
   refundTicket: (orderId: string, reason: string) => Promise<{ success: boolean; message: string }>;
@@ -111,6 +114,8 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
 
   // 添加工作人员操作数据
   const [staffOperations, setStaffOperations] = useState<StaffOperation[]>([]);
+  // 添加工作人员排班数据
+  const [staffSchedules, setStaffSchedules] = useState<StaffSchedule[]>([]);
 
   // 初始化认证
   useEffect(() => {
@@ -344,19 +349,42 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
   }, []);
 
   // 获取工作人员操作记录
-  const getStaffOperations = useCallback(async (staffId?: string): Promise<StaffOperation[]> => {
+  const getStaffOperations = useCallback(async (): Promise<StaffOperation[]> => {
     try {
-      let operations;
-      if (staffId) {
-        operations = await StaffOperationService.getOperationsByStaffId(staffId);
-      } else {
-        operations = await StaffOperationService.getAllOperations();
-      }
-      
+      const operations = await StaffOperationService.getAllOperations();
       setStaffOperations(operations);
       return operations;
     } catch (error) {
       console.error('获取操作记录失败:', error);
+      return [];
+    }
+  }, []);
+
+  // 查询工作人员的排班
+  const getStaffSchedules = useCallback(async (staffId?: string): Promise<StaffSchedule[]> => {
+    try {
+      let schedules;
+      if (staffId) {
+        schedules = await StaffScheduleService.getSchedulesByStaffId(staffId);
+      } else {
+        schedules = await StaffScheduleService.getAllSchedules();
+      }
+      
+      setStaffSchedules(schedules);
+      return schedules;
+    } catch (error) {
+      console.error('获取工作人员排班失败:', error);
+      return [];
+    }
+  }, []);
+  
+  // 获取近期排班
+  const getUpcomingStaffSchedules = useCallback(async (staffId: string): Promise<StaffSchedule[]> => {
+    try {
+      const schedules = await StaffScheduleService.getUpcomingSchedulesByStaffId(staffId);
+      return schedules;
+    } catch (error) {
+      console.error('获取近期排班失败:', error);
       return [];
     }
   }, []);
@@ -631,7 +659,7 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
   }, [userRole]);
 
   // 添加场次
-  const addShowtime = useCallback(async (showtime: Omit<Showtime, 'id'>): Promise<Showtime | null> => {
+  const addShowtime = useCallback(async (showtime: Omit<Showtime, 'id' | 'availableSeats'>): Promise<Showtime | null> => {
     if (userRole !== UserRole.ADMIN) {
       console.error('只有管理员可以添加场次');
       return null;
@@ -944,7 +972,10 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
     
     // 工作人员方法
     staffOperations,
+    staffSchedules,
     getStaffOperations,
+    getStaffSchedules,
+    getUpcomingStaffSchedules,
     sellTicket,
     checkTicket,
     refundTicket,

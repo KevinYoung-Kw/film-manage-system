@@ -8,37 +8,35 @@ import { User, Clock, Calendar, Ticket, Settings, LogOut, Bell } from 'lucide-re
 import MobileLayout from '@/app/components/layout/MobileLayout';
 import { Card } from '@/app/components/ui/Card';
 import Button from '@/app/components/ui/Button';
-import { mockUsers, mockStaffSchedules } from '@/app/lib/mockData';
+import { StaffScheduleService } from '@/app/lib/services/dataService';
 import { ShiftType } from '@/app/lib/types';
 import { userRoutes } from '@/app/lib/utils/navigation';
 import Link from 'next/link';
 import { useAppContext } from '@/app/lib/context/AppContext';
 
 export default function StaffProfilePage() {
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const { currentUser, logout, userRole, isAuthenticated } = useAppContext();
   const [upcomingSchedules, setUpcomingSchedules] = useState<any[]>([]);
-  const { logout } = useAppContext();
+  const [isLoading, setIsLoading] = useState(true);
   
   useEffect(() => {
-    // 假设当前登录的员工ID是staff1
-    const staffId = 'staff1';
-    const user = mockUsers.find(u => u.id === staffId);
-    setCurrentUser(user);
+    async function loadSchedules() {
+      if (!currentUser || !isAuthenticated) return;
+      
+      setIsLoading(true);
+      try {
+        // 获取当前工作人员的排班
+        const schedules = await StaffScheduleService.getUpcomingSchedulesByStaffId(currentUser.id);
+        setUpcomingSchedules(schedules);
+      } catch (error) {
+        console.error('加载排班信息失败:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
     
-    // 获取未来7天的排班
-    const now = new Date();
-    const weekLater = new Date();
-    weekLater.setDate(weekLater.getDate() + 7);
-    
-    const schedules = mockStaffSchedules
-      .filter(s => {
-        const scheduleDate = new Date(s.date);
-        return s.staffId === staffId && scheduleDate >= now && scheduleDate <= weekLater;
-      })
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    
-    setUpcomingSchedules(schedules);
-  }, []);
+    loadSchedules();
+  }, [currentUser, isAuthenticated]);
   
   // 处理退出登录
   const handleLogout = async () => {
@@ -94,7 +92,7 @@ export default function StaffProfilePage() {
           <Card className="p-4 shadow-lg">
             <div className="flex justify-between items-center mb-3">
               <h3 className="font-semibold text-lg">个人信息</h3>
-              <span className="text-xs text-indigo-600">员工ID: {currentUser.id}</span>
+              <span className="text-xs text-indigo-600">员工ID: {currentUser.id.substring(0, 8)}...</span>
             </div>
             <div className="grid grid-cols-4 gap-2">
               <Link href="/staff/history">
@@ -131,7 +129,9 @@ export default function StaffProfilePage() {
         <div className="px-4 mb-4">
           <h3 className="font-medium mb-3">近期排班</h3>
           <Card>
-            {upcomingSchedules.length > 0 ? (
+            {isLoading ? (
+              <div className="p-4 text-center text-slate-500">加载中...</div>
+            ) : upcomingSchedules.length > 0 ? (
               <div className="divide-y divide-slate-100">
                 {upcomingSchedules.map((schedule, index) => (
                   <div key={index} className="p-4">

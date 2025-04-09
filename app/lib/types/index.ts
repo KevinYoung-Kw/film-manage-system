@@ -123,6 +123,11 @@ export interface Order {
   cancelledAt?: Date;
   refundedAt?: Date;
   checkedAt?: Date; // 检票时间
+  // 扩展属性 - 关联信息
+  movieTitle?: string;
+  theaterName?: string;
+  moviePoster?: string;
+  showtime?: Date;
 }
 
 // 工作人员操作类型

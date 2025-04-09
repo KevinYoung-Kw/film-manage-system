@@ -1,5 +1,5 @@
-import { Movie, Theater, Showtime, Order, User, UserRole, Seat, StaffOperation, TicketType, MovieStatus, OrderStatus, StaffOperationType, TicketStatus } from '../types';
-import { mockMovies, mockTheaters, mockShowtimes, mockOrders, mockUsers, mockStaffOperations } from '../mockData';
+import { Movie, Theater, Showtime, Order, User, UserRole, Seat, StaffOperation, TicketType, MovieStatus, OrderStatus, StaffOperationType, TicketStatus, StaffSchedule, ShiftType } from '../types';
+import { mockMovies, mockTheaters, mockShowtimes, mockOrders, mockUsers, mockStaffOperations, mockStaffSchedules } from '../mockData';
 import supabase, { supabaseAdmin } from './supabaseClient';
 import { retrySupabaseRequest } from '../utils/supabaseErrorHandler';
 
@@ -92,9 +92,12 @@ export const MovieFallbackService = {
   // 优先从Supabase获取所有电影，失败时使用本地数据
   getAllMovies: async (processImageFn?: (url: string, useWebp?: boolean) => string): Promise<Movie[]> => {
     try {
+      console.log('[MovieFallbackService] 开始从Supabase获取电影列表...');
+      
       // 使用带重试逻辑的请求函数，优先使用 supabaseAdmin 绕过行级安全策略
       const { data, error } = await retrySupabaseRequest(
         async () => {
+          console.log('[MovieFallbackService] 使用supabaseAdmin发起请求...');
           // 使用 supabaseAdmin 绕过行级安全策略
           return await supabaseAdmin
             .from('movies')
@@ -109,10 +112,15 @@ export const MovieFallbackService = {
         }
       );
 
-      if (error) throw error;
+      if (error) {
+        console.error('[MovieFallbackService] Supabase请求返回错误:', error);
+        throw error;
+      }
+      
+      console.log(`[MovieFallbackService] Supabase请求成功，获取到${data.length}部电影`);
 
       // 转换数据结构
-      return data.map((movie: any) => ({
+      const movies = data.map((movie: any) => ({
         id: movie.id,
         title: movie.title,
         originalTitle: movie.original_title || undefined,
@@ -130,10 +138,14 @@ export const MovieFallbackService = {
         rating: movie.rating || 0, // 确保评分不为null
         status: mapMovieStatus(movie.status)
       }));
+      
+      console.log(`[MovieFallbackService] 数据转换完成，返回${movies.length}部电影`);
+      return movies;
     } catch (error) {
-      console.error('从Supabase获取电影列表失败，使用本地数据:', error);
+      console.error('[MovieFallbackService] 从Supabase获取电影列表失败，使用本地数据:', error);
       
       // 使用本地数据作为回退
+      console.log(`[MovieFallbackService] 回退到本地数据，使用mockMovies (${mockMovies.length}部电影)`);
       if (processImageFn) {
         return mockMovies.map(movie => ({
           ...movie,
@@ -627,5 +639,81 @@ export const StaffOperationFallbackService = {
       // 使用本地数据作为回退
       return mockStaffOperations.filter(op => op.staffId === staffId);
     }
+  }
+};
+
+// 工作人员排班数据回退服务
+export const StaffScheduleFallbackService = {
+  // 优先从Supabase获取所有排班，失败时使用本地数据
+  getAllSchedules: async (): Promise<StaffSchedule[]> => {
+    try {
+      // 尝试从Supabase获取数据
+      const { data, error } = await supabase
+        .from('staff_schedules')
+        .select('*')
+        .order('schedule_date', { ascending: true });
+
+      if (error) throw error;
+
+      // 转换数据结构
+      return data.map(schedule => ({
+        id: schedule.id,
+        staffId: schedule.staff_id,
+        date: new Date(schedule.schedule_date),
+        shift: schedule.shift as ShiftType,
+        position: schedule.position,
+        notes: schedule.notes || undefined,
+        createdAt: new Date(schedule.created_at),
+        updatedAt: schedule.updated_at ? new Date(schedule.updated_at) : undefined
+      }));
+    } catch (error) {
+      console.error('从Supabase获取工作人员排班记录失败，使用本地数据:', error);
+      
+      // 使用本地数据作为回退
+      return mockStaffSchedules;
+    }
+  },
+  
+  // 优先从Supabase获取工作人员排班，失败时使用本地数据
+  getSchedulesByStaffId: async (staffId: string): Promise<StaffSchedule[]> => {
+    try {
+      // 尝试从Supabase获取数据
+      const { data, error } = await supabase
+        .from('staff_schedules')
+        .select('*')
+        .eq('staff_id', staffId)
+        .order('schedule_date', { ascending: true });
+
+      if (error) throw error;
+
+      // 转换数据结构
+      return data.map(schedule => ({
+        id: schedule.id,
+        staffId: schedule.staff_id,
+        date: new Date(schedule.schedule_date),
+        shift: schedule.shift as ShiftType,
+        position: schedule.position,
+        notes: schedule.notes || undefined,
+        createdAt: new Date(schedule.created_at),
+        updatedAt: schedule.updated_at ? new Date(schedule.updated_at) : undefined
+      }));
+    } catch (error) {
+      console.error(`从Supabase获取员工(ID:${staffId})排班记录失败，使用本地数据:`, error);
+      
+      // 使用本地数据作为回退
+      return mockStaffSchedules.filter(schedule => schedule.staffId === staffId);
+    }
+  },
+  
+  // 根据日期获取排班
+  getSchedulesByDate: async (date: Date): Promise<StaffSchedule[]> => {
+    // 创建一个日期字符串用于比较 (YYYY-MM-DD)
+    const dateString = date.toISOString().split('T')[0];
+    
+    // 筛选出指定日期的排班
+    return mockStaffSchedules.filter(schedule => {
+      const scheduleDate = schedule.date.toISOString().split('T')[0];
+      return scheduleDate === dateString;
+    });
   }
 }; 

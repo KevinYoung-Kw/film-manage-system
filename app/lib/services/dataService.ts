@@ -1,22 +1,34 @@
-import { Movie, Theater, Showtime, Order, User, Seat, OrderStatus, StaffOperation, StaffOperationType, TicketType, TicketStatus } from '../types';
-import { mockMovies, mockTheaters, mockShowtimes, mockOrders, mockUsers, mockStaffOperations, defaultImages } from '../mockData';
+import { Movie, Theater, Showtime, Order, User, Seat, OrderStatus, StaffOperation, StaffOperationType, TicketType, TicketStatus, StaffSchedule } from '../types';
+import { mockMovies, mockTheaters, mockShowtimes, mockOrders, mockUsers, mockStaffOperations, defaultImages, mockStaffSchedules } from '../mockData';
 import { 
   MovieFallbackService, 
   TheaterFallbackService, 
   ShowtimeFallbackService, 
   OrderFallbackService, 
   UserFallbackService, 
-  StaffOperationFallbackService 
+  StaffOperationFallbackService,
+  StaffScheduleFallbackService
 } from './fallbackService';
+import { OrderService } from './orderService';
+import { StaffService } from './staffService';
+import { ScheduleService } from './scheduleService';
 
 /**
  * 处理图片URL，避免跨域问题
- * 将豆瓣图片URL替换为本地默认图片
+ * 优先使用Supabase存储的完整URL，仅当URL无效或包含豆瓣域名时才使用默认图片
  */
 export const processImageUrl = (url: string, useWebp: boolean = false): string => {
+  // 如果URL为空或包含豆瓣域名（避免跨域问题）
   if (!url || url.includes('douban')) {
     return useWebp ? defaultImages.webpMoviePoster : defaultImages.moviePoster;
   }
+  
+  // 如果URL已经是Supabase存储的完整URL或其他外部URL，直接返回
+  if (url.startsWith('http') || url.startsWith('https')) {
+    return url;
+  }
+  
+  // 如果是相对路径（如 /images/xxx），则使用本地路径
   return url;
 };
 
@@ -475,126 +487,7 @@ export const ShowtimeService = {
 };
 
 // 订单相关服务
-export const OrderService = {
-  // 获取所有订单
-  getAllOrders: async (): Promise<Order[]> => {
-    return OrderFallbackService.getAllOrders();
-  },
-  
-  // 根据用户ID获取订单
-  getOrdersByUserId: async (userId: string): Promise<Order[]> => {
-    return OrderFallbackService.getOrdersByUserId(userId);
-  },
-  
-  // 根据ID获取订单
-  getOrderById: async (id: string): Promise<Order | undefined> => {
-    const orders = await OrderFallbackService.getAllOrders();
-    return orders.find(order => order.id === id);
-  },
-  
-  // 创建订单
-  createOrder: (order: Omit<Order, 'id' | 'createdAt'>): Promise<Order> => {
-    // 生成订单号：TK + 年月日 + 4位序号
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    
-    // 生成4位序号，从现有订单数量+1开始
-    const orderCount = mockOrders.length + 1;
-    const serialNumber = String(orderCount).padStart(4, '0');
-    
-    const orderId = `TK${year.toString().slice(-2)}${month}${day}${serialNumber}`;
-    
-    const newOrder: Order = {
-      ...order,
-      id: orderId,
-      createdAt: new Date()
-    };
-    
-    // 添加新订单到 mockOrders 数组
-    mockOrders.push(newOrder);
-    
-    // 更新场次中的座位状态
-    const showtime = mockShowtimes.find(s => s.id === order.showtimeId);
-    if (showtime) {
-      showtime.availableSeats = showtime.availableSeats.map(seat => {
-        if (order.seats.includes(seat.id)) {
-          return { ...seat, available: false };
-        }
-        return seat;
-      });
-    }
-    
-    return Promise.resolve(newOrder);
-  },
-  
-  // 更新订单状态
-  updateOrderStatus: (orderId: string, status: OrderStatus): Promise<Order | null> => {
-    const orderIndex = mockOrders.findIndex(order => order.id === orderId);
-    if (orderIndex === -1) {
-      return Promise.resolve(null);
-    }
-    
-    // 克隆订单并更新状态
-    const updatedOrder = { 
-      ...mockOrders[orderIndex],
-      status 
-    };
-    
-    // 根据状态设置相应的时间戳
-    switch (status) {
-      case OrderStatus.PAID:
-        updatedOrder.paidAt = new Date();
-        break;
-      case OrderStatus.CANCELLED:
-        updatedOrder.cancelledAt = new Date();
-        break;
-      case OrderStatus.REFUNDED:
-        updatedOrder.refundedAt = new Date();
-        break;
-    }
-    
-    // 更新订单
-    mockOrders[orderIndex] = updatedOrder;
-    
-    return Promise.resolve(updatedOrder);
-  },
-  
-  // 取消订单并释放座位
-  cancelOrder: (orderId: string): Promise<Order | null> => {
-    const order = mockOrders.find(o => o.id === orderId);
-    if (!order) {
-      return Promise.resolve(null);
-    }
-    
-    // 更新订单状态
-    const updatedOrder = { 
-      ...order,
-      status: OrderStatus.CANCELLED,
-      cancelledAt: new Date()
-    };
-    
-    // 更新订单数组
-    const orderIndex = mockOrders.findIndex(o => o.id === orderId);
-    if (orderIndex !== -1) {
-      mockOrders[orderIndex] = updatedOrder;
-    }
-    
-    // 释放座位
-    const showtime = mockShowtimes.find(s => s.id === order.showtimeId);
-    if (showtime) {
-      showtime.availableSeats = showtime.availableSeats.map(seat => {
-        if (order.seats.includes(seat.id)) {
-          return { ...seat, available: true };
-        }
-        return seat;
-      });
-    }
-    
-    return Promise.resolve(updatedOrder);
-  }
-};
+export { OrderService };
 
 // 用户相关服务
 export const UserService = {
@@ -609,211 +502,8 @@ export const UserService = {
   }
 };
 
-// 工作人员操作服务
-export const StaffOperationService = {
-  // 获取所有操作记录
-  getAllOperations: async (): Promise<StaffOperation[]> => {
-    return StaffOperationFallbackService.getAllOperations();
-  },
-  
-  // 获取某员工的操作记录
-  getOperationsByStaffId: async (staffId: string): Promise<StaffOperation[]> => {
-    return StaffOperationFallbackService.getOperationsByStaffId(staffId);
-  },
-  
-  // 添加操作记录
-  addOperation: (operation: Omit<StaffOperation, 'id' | 'createdAt'>): Promise<StaffOperation> => {
-    const newOperation: StaffOperation = {
-      ...operation,
-      id: `operation${mockStaffOperations.length + 1}`,
-      createdAt: new Date()
-    };
-    
-    mockStaffOperations.push(newOperation);
-    return Promise.resolve(newOperation);
-  },
-  
-  // 售票操作
-  sellTicket: (
-    staffId: string, 
-    showtimeId: string, 
-    seats: string[], 
-    ticketType: TicketType, 
-    paymentMethod: string
-  ): Promise<Order | null> => {
-    // 查找场次
-    const showtime = mockShowtimes.find(s => s.id === showtimeId);
-    if (!showtime) return Promise.resolve(null);
-    
-    // 验证座位是否可用
-    const availableSeats = showtime.availableSeats.filter(seat => 
-      seats.includes(seat.id) && seat.available
-    );
-    
-    if (availableSeats.length !== seats.length) {
-      return Promise.resolve(null); // 有座位不可用
-    }
-    
-    try {
-      // 生成订单号：TK + 年月日 + 4位序号
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      
-      // 生成4位序号，从现有订单数量+1开始
-      const orderCount = mockOrders.length + 1;
-      const serialNumber = String(orderCount).padStart(4, '0');
-      
-      const orderId = `TK${year.toString().slice(-2)}${month}${day}${serialNumber}`;
-      
-      // 创建订单
-      const newOrder: Order = {
-        id: orderId,
-        userId: `staff-customer-${Date.now()}`, // 线下顾客临时ID
-        showtimeId,
-        seats,
-        ticketType,
-        totalPrice: seats.length * showtime.price[ticketType],
-        status: OrderStatus.PAID, // 线下售票，直接设为已支付
-        createdAt: new Date(),
-        paidAt: new Date()
-      };
-      
-      // 添加到订单列表
-      mockOrders.push(newOrder);
-      
-      // 更新座位状态
-      showtime.availableSeats = showtime.availableSeats.map(seat => {
-        if (seats.includes(seat.id)) {
-          return { ...seat, available: false };
-        }
-        return seat;
-      });
-      
-      // 添加操作记录
-      const operationDetails = {
-        ticketType,
-        seats,
-        totalPrice: newOrder.totalPrice,
-        paymentMethod
-      };
-      
-      mockStaffOperations.push({
-        id: `operation${mockStaffOperations.length + 1}`,
-        staffId,
-        orderId: newOrder.id,
-        showtimeId,
-        type: StaffOperationType.SELL,
-        details: JSON.stringify(operationDetails),
-        createdAt: new Date()
-      });
-      
-      return Promise.resolve(newOrder);
-    } catch (error) {
-      console.error('售票操作失败:', error);
-      return Promise.resolve(null);
-    }
-  },
-  
-  // 检票操作
-  checkTicket: (
-    staffId: string,
-    orderId: string
-  ): Promise<{ success: boolean; message: string }> => {
-    // 查找订单
-    const order = mockOrders.find(o => o.id === orderId);
-    if (!order) {
-      return Promise.resolve({ success: false, message: '订单不存在' });
-    }
-    
-    // 验证订单状态
-    if (order.status !== OrderStatus.PAID) {
-      return Promise.resolve({ success: false, message: '订单未支付，无法检票' });
-    }
-    
-    try {
-      // 添加操作记录
-      const operationDetails = {
-        checkTime: new Date().toISOString(),
-        status: 'success'
-      };
-      
-      mockStaffOperations.push({
-        id: `operation${mockStaffOperations.length + 1}`,
-        staffId,
-        orderId,
-        showtimeId: order.showtimeId,
-        type: StaffOperationType.CHECK,
-        details: JSON.stringify(operationDetails),
-        createdAt: new Date()
-      });
-      
-      return Promise.resolve({ success: true, message: '检票成功' });
-    } catch (error) {
-      console.error('检票操作失败:', error);
-      return Promise.resolve({ success: false, message: '操作失败，请重试' });
-    }
-  },
-  
-  // 退票操作
-  refundTicket: (
-    staffId: string,
-    orderId: string,
-    reason: string
-  ): Promise<{ success: boolean; message: string }> => {
-    // 查找订单
-    const order = mockOrders.find(o => o.id === orderId);
-    if (!order) {
-      return Promise.resolve({ success: false, message: '订单不存在' });
-    }
-    
-    // 验证订单状态
-    if (order.status !== OrderStatus.PAID) {
-      return Promise.resolve({ success: false, message: '只有已支付的订单可以退票' });
-    }
-    
-    try {
-      // 更新订单状态
-      const orderIndex = mockOrders.findIndex(o => o.id === orderId);
-      mockOrders[orderIndex] = {
-        ...order,
-        status: OrderStatus.REFUNDED,
-        refundedAt: new Date()
-      };
-      
-      // 释放座位
-      const showtime = mockShowtimes.find(s => s.id === order.showtimeId);
-      if (showtime) {
-        showtime.availableSeats = showtime.availableSeats.map(seat => {
-          if (order.seats.includes(seat.id)) {
-            return { ...seat, available: true };
-          }
-          return seat;
-        });
-      }
-      
-      // 添加操作记录
-      const operationDetails = {
-        refundAmount: order.totalPrice,
-        reason,
-        refundMethod: 'original'
-      };
-      
-      mockStaffOperations.push({
-        id: `operation${mockStaffOperations.length + 1}`,
-        staffId,
-        orderId,
-        showtimeId: order.showtimeId,
-        type: StaffOperationType.REFUND,
-        details: JSON.stringify(operationDetails),
-        createdAt: new Date()
-      });
-      
-      return Promise.resolve({ success: true, message: '退票成功' });
-    } catch (error) {
-      console.error('退票操作失败:', error);
-      return Promise.resolve({ success: false, message: '操作失败，请重试' });
-    }
-  }
-}; 
+// 工作人员操作相关服务
+export { StaffService as StaffOperationService };
+
+// 工作人员排班服务
+export { ScheduleService as StaffScheduleService }; 
