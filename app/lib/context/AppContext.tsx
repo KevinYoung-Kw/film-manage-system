@@ -2,9 +2,17 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { Movie, Theater, Showtime, Order, User, UserRole, TicketType, OrderStatus, StaffOperation, StaffOperationType, StaffSchedule } from '../types';
-import { MovieService, TheaterService, ShowtimeService, OrderService, UserService, StaffOperationService, StaffScheduleService } from '../services/dataService';
 import { AuthService } from '../services/authService';
 import { useRouter, usePathname } from 'next/navigation';
+
+// 导入Supabase服务
+import { UserService } from '../services/userService';
+import { MovieService } from '../services/movieService';
+import { TheaterService } from '../services/theaterService';
+import { ShowtimeService } from '../services/showtimeService';
+import { OrderService } from '../services/orderService';
+import { StaffService } from '../services/staffService';
+import { ScheduleService } from '../services/scheduleService';
 
 // 定义上下文状态类型
 interface AppContextState {
@@ -351,7 +359,7 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
   // 获取工作人员操作记录
   const getStaffOperations = useCallback(async (): Promise<StaffOperation[]> => {
     try {
-      const operations = await StaffOperationService.getAllOperations();
+      const operations = await StaffService.getAllOperations();
       setStaffOperations(operations);
       return operations;
     } catch (error) {
@@ -365,9 +373,9 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
     try {
       let schedules;
       if (staffId) {
-        schedules = await StaffScheduleService.getSchedulesByStaffId(staffId);
+        schedules = await ScheduleService.getSchedulesByStaffId(staffId);
       } else {
-        schedules = await StaffScheduleService.getAllSchedules();
+        schedules = await ScheduleService.getAllSchedules();
       }
       
       setStaffSchedules(schedules);
@@ -381,7 +389,7 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
   // 获取近期排班
   const getUpcomingStaffSchedules = useCallback(async (staffId: string): Promise<StaffSchedule[]> => {
     try {
-      const schedules = await StaffScheduleService.getUpcomingSchedulesByStaffId(staffId);
+      const schedules = await ScheduleService.getUpcomingSchedulesByStaffId(staffId);
       return schedules;
     } catch (error) {
       console.error('获取近期排班失败:', error);
@@ -750,7 +758,7 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
     }
     
     try {
-      const newOrder = await StaffOperationService.sellTicket(
+      const newOrder = await StaffService.sellTicket(
         currentUser.id,
         showtimeId,
         seats,
@@ -793,7 +801,7 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
     }
     
     try {
-      const result = await StaffOperationService.checkTicket(currentUser.id, orderId);
+      const result = await StaffService.checkTicket(currentUser.id, orderId);
       return result;
     } catch (error) {
       console.error('检查票失败:', error);
@@ -809,7 +817,7 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
     }
     
     try {
-      const result = await StaffOperationService.refundTicket(currentUser.id, orderId, reason);
+      const result = await StaffService.refundTicket(currentUser.id, orderId, reason);
       return result;
     } catch (error) {
       console.error('退票失败:', error);

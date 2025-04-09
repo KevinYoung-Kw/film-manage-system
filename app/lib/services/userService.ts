@@ -1,147 +1,23 @@
 import supabase from './supabaseClient';
 import { User, UserRole } from '../types';
 
-// 用户服务：处理用户注册、登录、获取信息等功能
+/**
+ * 用户服务 - 处理用户管理相关功能
+ */
 export const UserService = {
-  // 用户注册
-  register: async (name: string, email: string, password: string, role: UserRole = UserRole.CUSTOMER): Promise<User | null> => {
-    try {
-      // 1. 创建Supabase Auth用户
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name,
-            role
-          }
-        }
-      });
-
-      if (authError) {
-        console.error('注册Auth用户失败:', authError);
-        return null;
-      }
-
-      // 2. 如果Auth注册成功，获取用户信息
-      if (authData.user) {
-        return {
-          id: authData.user.id,
-          name,
-          email,
-          role,
-          createdAt: new Date()
-        };
-      }
-
-      return null;
-    } catch (error) {
-      console.error('用户注册失败:', error);
-      return null;
-    }
-  },
-
-  // 用户登录
-  login: async (email: string, password: string): Promise<User | null> => {
-    try {
-      // 使用Supabase Auth登录
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
-
-      if (authError) {
-        console.error('登录失败:', authError);
-        return null;
-      }
-
-      // 获取用户数据
-      if (authData.user) {
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('name, email, role, created_at')
-          .eq('id', authData.user.id)
-          .single();
-
-        if (userError) {
-          console.error('获取用户数据失败:', userError);
-          return null;
-        }
-
-        return {
-          id: authData.user.id,
-          name: userData.name,
-          email: userData.email,
-          role: userData.role as UserRole,
-          createdAt: new Date(userData.created_at)
-        };
-      }
-
-      return null;
-    } catch (error) {
-      console.error('登录失败:', error);
-      return null;
-    }
-  },
-
-  // 登出
-  logout: async (): Promise<void> => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error('登出失败:', error);
-      }
-    } catch (error) {
-      console.error('登出失败:', error);
-    }
-  },
-
-  // 获取当前登录用户
-  getCurrentUser: async (): Promise<User | null> => {
-    try {
-      // 获取当前会话
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError || !sessionData.session) {
-        return null;
-      }
-
-      // 获取用户数据
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('name, email, role, created_at')
-        .eq('id', sessionData.session.user.id)
-        .single();
-
-      if (userError) {
-        console.error('获取用户数据失败:', userError);
-        return null;
-      }
-
-      return {
-        id: sessionData.session.user.id,
-        name: userData.name,
-        email: userData.email,
-        role: userData.role as UserRole,
-        createdAt: new Date(userData.created_at)
-      };
-    } catch (error) {
-      console.error('获取当前用户失败:', error);
-      return null;
-    }
-  },
-
-  // 获取所有用户(仅管理员可用)
+  /**
+   * 获取所有用户
+   * @returns 用户列表
+   */
   getAllUsers: async (): Promise<User[]> => {
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('id, name, email, role, created_at')
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('获取用户列表失败:', error);
-        return [];
+        throw new Error('获取用户列表失败: ' + error.message);
       }
 
       return data.map(user => ({
@@ -153,49 +29,55 @@ export const UserService = {
       }));
     } catch (error) {
       console.error('获取用户列表失败:', error);
-      return [];
+      throw error;
     }
   },
 
-  // 根据ID获取用户
-  getUserById: async (id: string): Promise<User | undefined> => {
+  /**
+   * 按角色获取用户
+   * @param role 用户角色
+   * @returns 符合角色的用户列表
+   */
+  getUsersByRole: async (role: UserRole): Promise<User[]> => {
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('id, name, email, role, created_at')
-        .eq('id', id)
-        .single();
+        .select('*')
+        .eq('role', role)
+        .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('获取用户失败:', error);
-        return undefined;
+        throw new Error(`获取${role}用户列表失败: ` + error.message);
       }
 
-      return {
-        id: data.id,
-        name: data.name,
-        email: data.email,
-        role: data.role as UserRole,
-        createdAt: new Date(data.created_at)
-      };
+      return data.map(user => ({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role as UserRole,
+        createdAt: new Date(user.created_at)
+      }));
     } catch (error) {
-      console.error('获取用户失败:', error);
-      return undefined;
+      console.error(`获取${role}用户列表失败:`, error);
+      throw error;
     }
   },
 
-  // 更新用户信息
-  updateUser: async (id: string, userData: Partial<Omit<User, 'id' | 'createdAt'>>): Promise<User | null> => {
+  /**
+   * 获取指定用户
+   * @param userId 用户ID
+   * @returns 用户信息
+   */
+  getUserById: async (userId: string): Promise<User | null> => {
     try {
       const { data, error } = await supabase
         .from('users')
-        .update(userData)
-        .eq('id', id)
-        .select()
+        .select('*')
+        .eq('id', userId)
         .single();
 
-      if (error) {
-        console.error('更新用户失败:', error);
+      if (error || !data) {
+        console.error('获取用户信息失败:', error);
         return null;
       }
 
@@ -207,8 +89,147 @@ export const UserService = {
         createdAt: new Date(data.created_at)
       };
     } catch (error) {
-      console.error('更新用户失败:', error);
+      console.error('获取用户信息失败:', error);
       return null;
+    }
+  },
+
+  /**
+   * 更新用户信息
+   * @param userId 用户ID
+   * @param userData 更新的用户数据
+   * @returns 更新后的用户信息
+   */
+  updateUser: async (userId: string, userData: Partial<User>): Promise<User | null> => {
+    try {
+      // 转换为数据库格式
+      const updateData: any = {};
+      if (userData.name) updateData.name = userData.name;
+      if (userData.email) updateData.email = userData.email;
+      if (userData.role) updateData.role = userData.role;
+
+      const { data, error } = await supabase
+        .from('users')
+        .update(updateData)
+        .eq('id', userId)
+        .select()
+        .single();
+
+      if (error || !data) {
+        throw new Error('更新用户信息失败: ' + error?.message || '未知错误');
+      }
+
+      return {
+        id: data.id,
+        name: data.name,
+        email: data.email,
+        role: data.role as UserRole,
+        createdAt: new Date(data.created_at)
+      };
+    } catch (error) {
+      console.error('更新用户信息失败:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * 更新用户密码
+   * @param userId 用户ID
+   * @param newPassword 新密码
+   * @returns 是否成功
+   */
+  updatePassword: async (userId: string, newPassword: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ 
+          password_hash: newPassword,  // 实际应用中需要哈希处理
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId);
+
+      if (error) {
+        throw new Error('更新密码失败: ' + error.message);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('更新密码失败:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * 创建新用户（仅管理员可用）
+   * @param userData 用户信息
+   * @returns 创建的用户信息
+   */
+  createUser: async (userData: {
+    name: string;
+    email: string;
+    password: string;
+    role: UserRole;
+  }): Promise<User | null> => {
+    try {
+      // 检查邮箱是否已存在
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', userData.email)
+        .single();
+
+      if (existingUser) {
+        throw new Error('该邮箱已被注册');
+      }
+
+      const { data, error } = await supabase
+        .from('users')
+        .insert([{
+          name: userData.name,
+          email: userData.email,
+          password_hash: userData.password,  // 实际应用中需要哈希处理
+          role: userData.role
+        }])
+        .select()
+        .single();
+
+      if (error || !data) {
+        throw new Error('创建用户失败: ' + error?.message || '未知错误');
+      }
+
+      return {
+        id: data.id,
+        name: data.name,
+        email: data.email,
+        role: data.role as UserRole,
+        createdAt: new Date(data.created_at)
+      };
+    } catch (error) {
+      console.error('创建用户失败:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * 删除用户（仅管理员可用）
+   * @param userId 用户ID
+   * @returns 是否成功
+   */
+  deleteUser: async (userId: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', userId);
+
+      if (error) {
+        throw new Error('删除用户失败: ' + error.message);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('删除用户失败:', error);
+      throw error;
     }
   }
 }; 

@@ -2,9 +2,14 @@ import supabase from './supabaseClient';
 import { Movie, MovieStatus } from '../types';
 import { processImageUrl } from './dataService';
 
-// 电影服务：处理电影的增删改查功能
+/**
+ * 电影服务 - 处理电影相关功能
+ */
 export const MovieService = {
-  // 获取所有电影
+  /**
+   * 获取所有电影
+   * @returns 电影列表
+   */
   getAllMovies: async (): Promise<Movie[]> => {
     try {
       const { data, error } = await supabase
@@ -13,17 +18,15 @@ export const MovieService = {
         .order('release_date', { ascending: false });
 
       if (error) {
-        console.error('获取电影列表失败:', error);
-        return [];
+        throw new Error('获取电影列表失败: ' + error.message);
       }
 
-      // 转换数据结构以匹配应用中的Movie类型
       return data.map(movie => ({
         id: movie.id,
         title: movie.title,
         originalTitle: movie.original_title || undefined,
         poster: processImageUrl(movie.poster),
-        webpPoster: movie.webp_poster ? movie.webp_poster : processImageUrl(movie.poster, true),
+        webpPoster: movie.webp_poster ? processImageUrl(movie.webp_poster) : undefined,
         duration: movie.duration,
         director: movie.director,
         actors: movie.actors,
@@ -31,108 +34,19 @@ export const MovieService = {
         description: movie.description,
         releaseDate: new Date(movie.release_date),
         genre: movie.genre,
-        rating: movie.rating,
-        status: movie.status as MovieStatus
+        rating: movie.rating || 0,
+        status: movie.status as MovieStatus || MovieStatus.COMING_SOON
       }));
     } catch (error) {
       console.error('获取电影列表失败:', error);
-      return [];
+      throw error;
     }
   },
 
-  // 根据ID获取电影
-  getMovieById: async (id: string): Promise<Movie | undefined> => {
-    try {
-      const { data, error } = await supabase
-        .from('movies')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (error) {
-        console.error('获取电影失败:', error);
-        return undefined;
-      }
-
-      return {
-        id: data.id,
-        title: data.title,
-        originalTitle: data.original_title || undefined,
-        poster: processImageUrl(data.poster),
-        webpPoster: data.webp_poster ? data.webp_poster : processImageUrl(data.poster, true),
-        duration: data.duration,
-        director: data.director,
-        actors: data.actors,
-        cast: data.cast || undefined,
-        description: data.description,
-        releaseDate: new Date(data.release_date),
-        genre: data.genre,
-        rating: data.rating,
-        status: data.status as MovieStatus
-      };
-    } catch (error) {
-      console.error('获取电影失败:', error);
-      return undefined;
-    }
-  },
-
-  // 根据条件筛选电影
-  getMoviesByFilter: async (filter: {
-    genre?: string;
-    search?: string;
-    status?: MovieStatus;
-  }): Promise<Movie[]> => {
-    try {
-      // 构建查询
-      let query = supabase.from('movies').select('*');
-
-      // 添加过滤条件
-      if (filter.status) {
-        query = query.eq('status', filter.status);
-      }
-
-      if (filter.genre) {
-        // PostgreSQL数组包含查询
-        query = query.contains('genre', [filter.genre]);
-      }
-
-      if (filter.search) {
-        // 模糊搜索
-        query = query.or(`title.ilike.%${filter.search}%,director.ilike.%${filter.search}%`);
-      }
-
-      // 执行查询
-      const { data, error } = await query.order('release_date', { ascending: false });
-
-      if (error) {
-        console.error('筛选电影失败:', error);
-        return [];
-      }
-
-      // 转换数据结构
-      return data.map(movie => ({
-        id: movie.id,
-        title: movie.title,
-        originalTitle: movie.original_title || undefined,
-        poster: processImageUrl(movie.poster),
-        webpPoster: movie.webp_poster ? movie.webp_poster : processImageUrl(movie.poster, true),
-        duration: movie.duration,
-        director: movie.director,
-        actors: movie.actors,
-        cast: movie.cast || undefined,
-        description: movie.description,
-        releaseDate: new Date(movie.release_date),
-        genre: movie.genre,
-        rating: movie.rating,
-        status: movie.status as MovieStatus
-      }));
-    } catch (error) {
-      console.error('筛选电影失败:', error);
-      return [];
-    }
-  },
-
-  // 获取正在上映的电影
+  /**
+   * 获取正在上映的电影
+   * @returns 正在上映的电影列表
+   */
   getNowShowingMovies: async (): Promise<Movie[]> => {
     try {
       const { data, error } = await supabase
@@ -141,34 +55,36 @@ export const MovieService = {
         .order('release_date', { ascending: false });
 
       if (error) {
-        console.error('获取上映电影失败:', error);
-        return [];
+        throw new Error('获取正在上映电影失败: ' + error.message);
       }
 
-      // 转换数据结构
       return data.map(movie => ({
-        id: movie.id,
-        title: movie.title,
+        id: movie.id!,
+        title: movie.title!,
         originalTitle: movie.original_title || undefined,
-        poster: processImageUrl(movie.poster),
-        webpPoster: movie.webp_poster ? movie.webp_poster : processImageUrl(movie.poster, true),
-        duration: movie.duration,
-        director: movie.director,
-        actors: movie.actors,
+        poster: processImageUrl(movie.poster!),
+        webpPoster: movie.webp_poster ? processImageUrl(movie.webp_poster) : undefined,
+        duration: movie.duration!,
+        director: movie.director!,
+        actors: movie.actors || [],
         cast: movie.cast || undefined,
-        description: movie.description,
-        releaseDate: new Date(movie.release_date),
-        genre: movie.genre,
-        rating: movie.rating,
-        status: movie.status as MovieStatus
+        description: movie.description!,
+        releaseDate: new Date(movie.release_date!),
+        genre: movie.genre || [],
+        rating: movie.rating || 0,
+        status: movie.status as MovieStatus || MovieStatus.SHOWING,
+        showtimeCount: movie.showtime_count || 0
       }));
     } catch (error) {
-      console.error('获取上映电影失败:', error);
-      return [];
+      console.error('获取正在上映电影失败:', error);
+      throw error;
     }
   },
 
-  // 获取即将上映的电影
+  /**
+   * 获取即将上映的电影
+   * @returns 即将上映的电影列表
+   */
   getComingSoonMovies: async (): Promise<Movie[]> => {
     try {
       const { data, error } = await supabase
@@ -177,40 +93,84 @@ export const MovieService = {
         .order('release_date', { ascending: true });
 
       if (error) {
-        console.error('获取即将上映电影失败:', error);
-        return [];
+        throw new Error('获取即将上映电影失败: ' + error.message);
       }
 
-      // 转换数据结构
       return data.map(movie => ({
-        id: movie.id,
-        title: movie.title,
+        id: movie.id!,
+        title: movie.title!,
         originalTitle: movie.original_title || undefined,
-        poster: processImageUrl(movie.poster),
-        webpPoster: movie.webp_poster ? movie.webp_poster : processImageUrl(movie.poster, true),
-        duration: movie.duration,
-        director: movie.director,
-        actors: movie.actors,
+        poster: processImageUrl(movie.poster!),
+        webpPoster: movie.webp_poster ? processImageUrl(movie.webp_poster) : undefined,
+        duration: movie.duration!,
+        director: movie.director!,
+        actors: movie.actors || [],
         cast: movie.cast || undefined,
-        description: movie.description,
-        releaseDate: new Date(movie.release_date),
-        genre: movie.genre,
-        rating: movie.rating,
-        status: movie.status as MovieStatus
+        description: movie.description!,
+        releaseDate: new Date(movie.release_date!),
+        genre: movie.genre || [],
+        rating: movie.rating || 0,
+        status: movie.status as MovieStatus || MovieStatus.COMING_SOON
       }));
     } catch (error) {
       console.error('获取即将上映电影失败:', error);
-      return [];
+      throw error;
     }
   },
 
-  // 添加新电影 (仅管理员权限)
+  /**
+   * 获取电影详情
+   * @param movieId 电影ID
+   * @returns 电影详情
+   */
+  getMovieById: async (movieId: string): Promise<Movie | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('vw_movie_details')
+        .select('*')
+        .eq('id', movieId)
+        .single();
+
+      if (error || !data) {
+        console.error('获取电影详情失败:', error);
+        return null;
+      }
+
+      return {
+        id: data.id!,
+        title: data.title!,
+        originalTitle: data.original_title || undefined,
+        poster: processImageUrl(data.poster!),
+        webpPoster: data.webp_poster ? processImageUrl(data.webp_poster) : undefined,
+        duration: data.duration!,
+        director: data.director!,
+        actors: data.actors || [],
+        cast: data.cast || undefined,
+        description: data.description!,
+        releaseDate: new Date(data.release_date!),
+        genre: data.genre || [],
+        rating: data.rating || 0,
+        status: data.status as MovieStatus || MovieStatus.COMING_SOON,
+        totalShowtimes: data.total_showtimes || 0,
+        totalOrders: data.total_orders || 0,
+        totalRevenue: data.total_revenue || 0
+      };
+    } catch (error) {
+      console.error('获取电影详情失败:', error);
+      return null;
+    }
+  },
+
+  /**
+   * 添加电影
+   * @param movie 电影信息
+   * @returns 添加的电影信息
+   */
   addMovie: async (movie: Omit<Movie, 'id'>): Promise<Movie | null> => {
     try {
-      // 将Movie类型转换为数据库结构
       const { data, error } = await supabase
         .from('movies')
-        .insert({
+        .insert([{
           title: movie.title,
           original_title: movie.originalTitle,
           poster: movie.poster,
@@ -224,13 +184,12 @@ export const MovieService = {
           genre: movie.genre,
           rating: movie.rating,
           status: movie.status || 'coming_soon'
-        })
+        }])
         .select()
         .single();
 
-      if (error) {
-        console.error('添加电影失败:', error);
-        return null;
+      if (error || !data) {
+        throw new Error('添加电影失败: ' + error?.message || '未知错误');
       }
 
       return {
@@ -238,7 +197,7 @@ export const MovieService = {
         title: data.title,
         originalTitle: data.original_title || undefined,
         poster: processImageUrl(data.poster),
-        webpPoster: data.webp_poster ? data.webp_poster : processImageUrl(data.poster, true),
+        webpPoster: data.webp_poster ? processImageUrl(data.webp_poster) : undefined,
         duration: data.duration,
         director: data.director,
         actors: data.actors,
@@ -246,21 +205,25 @@ export const MovieService = {
         description: data.description,
         releaseDate: new Date(data.release_date),
         genre: data.genre,
-        rating: data.rating,
-        status: data.status as MovieStatus
+        rating: data.rating || 0,
+        status: data.status as MovieStatus || MovieStatus.COMING_SOON
       };
     } catch (error) {
       console.error('添加电影失败:', error);
-      return null;
+      throw error;
     }
   },
 
-  // 更新电影信息 (仅管理员权限)
-  updateMovie: async (id: string, movieData: Partial<Movie>): Promise<Movie | null> => {
+  /**
+   * 更新电影信息
+   * @param movieId 电影ID
+   * @param movieData 更新的电影数据
+   * @returns 更新后的电影信息
+   */
+  updateMovie: async (movieId: string, movieData: Partial<Movie>): Promise<Movie | null> => {
     try {
-      // 构建更新数据
+      // 转换为数据库格式
       const updateData: any = {};
-      
       if (movieData.title !== undefined) updateData.title = movieData.title;
       if (movieData.originalTitle !== undefined) updateData.original_title = movieData.originalTitle;
       if (movieData.poster !== undefined) updateData.poster = movieData.poster;
@@ -270,24 +233,20 @@ export const MovieService = {
       if (movieData.actors !== undefined) updateData.actors = movieData.actors;
       if (movieData.cast !== undefined) updateData.cast = movieData.cast;
       if (movieData.description !== undefined) updateData.description = movieData.description;
-      if (movieData.releaseDate !== undefined) {
-        updateData.release_date = movieData.releaseDate.toISOString().split('T')[0];
-      }
+      if (movieData.releaseDate !== undefined) updateData.release_date = movieData.releaseDate.toISOString().split('T')[0];
       if (movieData.genre !== undefined) updateData.genre = movieData.genre;
       if (movieData.rating !== undefined) updateData.rating = movieData.rating;
       if (movieData.status !== undefined) updateData.status = movieData.status;
 
-      // 执行更新
       const { data, error } = await supabase
         .from('movies')
         .update(updateData)
-        .eq('id', id)
+        .eq('id', movieId)
         .select()
         .single();
 
-      if (error) {
-        console.error('更新电影失败:', error);
-        return null;
+      if (error || !data) {
+        throw new Error('更新电影信息失败: ' + error?.message || '未知错误');
       }
 
       return {
@@ -295,7 +254,7 @@ export const MovieService = {
         title: data.title,
         originalTitle: data.original_title || undefined,
         poster: processImageUrl(data.poster),
-        webpPoster: data.webp_poster ? data.webp_poster : processImageUrl(data.poster, true),
+        webpPoster: data.webp_poster ? processImageUrl(data.webp_poster) : undefined,
         duration: data.duration,
         director: data.director,
         actors: data.actors,
@@ -303,32 +262,89 @@ export const MovieService = {
         description: data.description,
         releaseDate: new Date(data.release_date),
         genre: data.genre,
-        rating: data.rating,
-        status: data.status as MovieStatus
+        rating: data.rating || 0,
+        status: data.status as MovieStatus || MovieStatus.COMING_SOON
       };
     } catch (error) {
-      console.error('更新电影失败:', error);
-      return null;
+      console.error('更新电影信息失败:', error);
+      throw error;
     }
   },
 
-  // 删除电影 (仅管理员权限)
-  deleteMovie: async (id: string): Promise<boolean> => {
+  /**
+   * 更新电影状态
+   * @param movieId 电影ID
+   * @param status 新状态
+   * @returns 是否成功
+   */
+  updateMovieStatus: async (movieId: string, status: MovieStatus): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('movies')
+        .update({ status })
+        .eq('id', movieId);
+
+      if (error) {
+        throw new Error('更新电影状态失败: ' + error.message);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('更新电影状态失败:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * 删除电影
+   * @param movieId 电影ID
+   * @returns 是否成功
+   */
+  deleteMovie: async (movieId: string): Promise<boolean> => {
     try {
       const { error } = await supabase
         .from('movies')
         .delete()
-        .eq('id', id);
+        .eq('id', movieId);
 
       if (error) {
-        console.error('删除电影失败:', error);
-        return false;
+        throw new Error('删除电影失败: ' + error.message);
       }
 
       return true;
     } catch (error) {
       console.error('删除电影失败:', error);
-      return false;
+      throw error;
+    }
+  },
+
+  /**
+   * 获取电影排行榜
+   * @param limit 限制数量
+   * @returns 电影排行榜
+   */
+  getMovieRanking: async (limit = 10): Promise<any[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('vw_movie_revenue_ranking')
+        .select('*')
+        .limit(limit);
+
+      if (error) {
+        throw new Error('获取电影排行榜失败: ' + error.message);
+      }
+
+      return data.map(movie => ({
+        id: movie.id,
+        title: movie.title,
+        poster: processImageUrl(movie.poster || ''),
+        releaseDate: new Date(movie.release_date || new Date()),
+        ticketCount: movie.ticket_count || 0,
+        totalRevenue: movie.total_revenue || 0
+      }));
+    } catch (error) {
+      console.error('获取电影排行榜失败:', error);
+      throw error;
     }
   }
 }; 

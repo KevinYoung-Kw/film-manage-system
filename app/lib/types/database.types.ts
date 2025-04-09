@@ -634,6 +634,111 @@ export interface Database {
         }
         Relationships: []
       }
+      ticket_types: {
+        Row: {
+          id: string
+          name: string
+          base_price: number
+          description: string | null
+          is_active: boolean
+          created_at: string
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          base_price: number
+          description?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          base_price?: number
+          description?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      pricing_strategies: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          condition_type: string
+          condition_value: string | null
+          discount_percentage: number | null
+          extra_charge: number | null
+          is_active: boolean
+          created_at: string
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          condition_type: string
+          condition_value?: string | null
+          discount_percentage?: number | null
+          extra_charge?: number | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          description?: string | null
+          condition_type?: string
+          condition_value?: string | null
+          discount_percentage?: number | null
+          extra_charge?: number | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      ticket_type_pricing_strategies: {
+        Row: {
+          id: string
+          ticket_type_id: string
+          pricing_strategy_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          ticket_type_id: string
+          pricing_strategy_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          ticket_type_id?: string
+          pricing_strategy_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_type_pricing_strategies_pricing_strategy_id_fkey"
+            columns: ["pricing_strategy_id"]
+            isOneToOne: false
+            referencedRelation: "pricing_strategies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_type_pricing_strategies_ticket_type_id_fkey"
+            columns: ["ticket_type_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_types"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       api_admin_stats: {

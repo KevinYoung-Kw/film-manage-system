@@ -2,28 +2,39 @@
 
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Filter, X, Calendar, Clock, Check } from 'lucide-react';
-import { MovieStatus } from '@/app/lib/types';
-import { useAppContext } from '@/app/lib/context/AppContext';
+import { MovieStatus, Movie } from '@/app/lib/types';
 import Image from 'next/image';
 import { defaultImages } from '@/app/lib/mockData';
 import { processImageUrl } from '@/app/lib/services/dataService';
+import { MovieService } from '@/app/lib/services/movieService';
 
 export default function MoviesManagementPage() {
-  const { movies, addMovie, updateMovie, deleteMovie, refreshData } = useAppContext();
+  const [movies, setMovies] = useState<Movie[]>([]);
   const [filter, setFilter] = useState('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [currentMovie, setCurrentMovie] = useState<any>(null);
+  const [currentMovie, setCurrentMovie] = useState<Movie | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [editedMovie, setEditedMovie] = useState<any>(null);
+  const [editedMovie, setEditedMovie] = useState<Movie | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   
-  useEffect(() => {
+  // 刷新数据
+  const refreshData = async () => {
     setIsLoading(true);
-    refreshData().then(() => {
+    try {
+      const moviesData = await MovieService.getAllMovies();
+      setMovies(moviesData);
+    } catch (error) {
+      console.error('加载电影数据失败:', error);
+      alert('加载电影失败，请刷新页面重试');
+    } finally {
       setIsLoading(false);
-    });
-  }, [refreshData]);
+    }
+  };
+  
+  useEffect(() => {
+    refreshData();
+  }, []);
   
   // 过滤电影列表
   const filteredMovies = movies.filter(movie => {
@@ -35,7 +46,7 @@ export default function MoviesManagementPage() {
   });
 
   // 处理编辑电影
-  const handleEditMovie = (movie: any) => {
+  const handleEditMovie = (movie: Movie) => {
     setCurrentMovie(movie);
     setEditedMovie({...movie}); // 创建副本以便编辑
     setShowEditModal(true);
@@ -71,7 +82,7 @@ export default function MoviesManagementPage() {
       }
       
       // 更新电影信息
-      const updated = await updateMovie(currentMovie.id, editedMovie);
+      const updated = await MovieService.updateMovie(currentMovie.id, editedMovie);
       
       if (updated) {
         setSaveSuccess(true);
@@ -99,7 +110,7 @@ export default function MoviesManagementPage() {
     
     try {
       setIsLoading(true);
-      const success = await deleteMovie(movieId);
+      const success = await MovieService.deleteMovie(movieId);
       
       if (success) {
         alert('电影已删除');
@@ -116,7 +127,7 @@ export default function MoviesManagementPage() {
   };
 
   // 处理添加新电影
-  const handleAddNewMovie = async (movieData: any) => {
+  const handleAddNewMovie = async (movieData: Omit<Movie, 'id'>) => {
     try {
       setIsLoading(true);
       
@@ -125,7 +136,7 @@ export default function MoviesManagementPage() {
         movieData.releaseDate = new Date(movieData.releaseDate);
       }
       
-      const newMovie = await addMovie(movieData);
+      const newMovie = await MovieService.addMovie(movieData);
       
       if (newMovie) {
         setSaveSuccess(true);
@@ -329,7 +340,9 @@ export default function MoviesManagementPage() {
                   className="w-full px-3 py-2 border rounded-md"
                   value={editedMovie?.releaseDate instanceof Date 
                     ? editedMovie.releaseDate.toISOString().split('T')[0]
-                    : new Date(editedMovie?.releaseDate).toISOString().split('T')[0]}
+                    : editedMovie?.releaseDate 
+                      ? new Date(editedMovie.releaseDate).toISOString().split('T')[0]
+                      : ''}
                   onChange={(e) => handleInputChange('releaseDate', e.target.value)}
                 />
               </div>
@@ -461,8 +474,47 @@ export default function MoviesManagementPage() {
             
             {/* 添加新电影的表单，与编辑表单类似，但初始值为空 */}
             <div className="space-y-4">
-              {/* 此处可以复制编辑表单的字段，初始值设为空 */}
-              {/* ... */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  电影标题
+                </label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border rounded-md"
+                  placeholder="输入电影标题"
+                  defaultValue="新电影"
+                  id="new-movie-title"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  原始标题（外语片）
+                </label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border rounded-md"
+                  placeholder="输入原始标题"
+                  id="new-movie-original-title"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  电影状态
+                </label>
+                <select
+                  className="w-full px-3 py-2 border rounded-md"
+                  defaultValue={MovieStatus.COMING_SOON}
+                  id="new-movie-status"
+                >
+                  <option value={MovieStatus.COMING_SOON}>即将上映</option>
+                  <option value={MovieStatus.SHOWING}>正在上映</option>
+                  <option value={MovieStatus.OFF_SHOWING}>已下映</option>
+                </select>
+              </div>
+              
+              {/* 其他表单字段可以类似添加 */}
             </div>
             
             <div className="mt-6 flex justify-end space-x-3">
@@ -475,7 +527,6 @@ export default function MoviesManagementPage() {
               <button
                 className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm"
                 onClick={() => handleAddNewMovie({
-                  // 添加电影的数据
                   title: '新电影',
                   description: '电影描述',
                   releaseDate: new Date(),

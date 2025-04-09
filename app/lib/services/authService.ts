@@ -1,110 +1,161 @@
+import supabase from './supabaseClient';
 import { User, UserRole } from '../types';
-import { mockUsers } from '../mockData';
 
-interface LoginCredentials {
-  email: string;
-  password: string;
-}
-
-interface RegisterData {
-  email: string;
-  password: string;
-  name: string;
-  role?: UserRole;
-}
-
-// 用户会话管理
-const SESSION_KEY = 'user_session';
-
-// 保存用户会话到localStorage
-const saveSession = (user: User): void => {
-  try {
-    localStorage.setItem(SESSION_KEY, JSON.stringify(user));
-  } catch (error) {
-    console.error('保存会话失败:', error);
-  }
-};
-
-// 从localStorage获取用户会话
-const getSession = (): User | null => {
-  try {
-    const sessionData = localStorage.getItem(SESSION_KEY);
-    if (sessionData) {
-      return JSON.parse(sessionData);
-    }
-  } catch (error) {
-    console.error('获取会话失败:', error);
-  }
-  return null;
-};
-
-// 清除localStorage中的用户会话
-const clearSession = (): void => {
-  try {
-    localStorage.removeItem(SESSION_KEY);
-  } catch (error) {
-    console.error('清除会话失败:', error);
-  }
-};
-
+/**
+ * 认证服务 - 处理登录、注册、退出等身份验证功能
+ */
 export const AuthService = {
-  // 登录方法
-  login: async (credentials: LoginCredentials): Promise<User | null> => {
+  /**
+   * 用户登录
+   * @param email 邮箱
+   * @param password 密码
+   * @returns 登录用户信息
+   */
+  login: async (email: string, password: string): Promise<User | null> => {
     try {
-      // 使用模拟数据进行登录
-      // 在真实环境中应该对密码进行哈希处理，这里为了简化使用明文
-      const user = mockUsers.find(u => 
-        u.email.toLowerCase() === credentials.email.toLowerCase()
-      );
-      
-      // 模拟数据中的密码固定为123456
-      const isPasswordValid = credentials.password === '123456';
-      
-      if (user && isPasswordValid) {
-        saveSession(user);
-        return user;
+      // 查询用户表获取用户信息
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .single();
+
+      if (error || !user) {
+        console.error('登录失败:', error);
+        throw new Error('用户名或密码错误');
       }
-      
-      return null;
+
+      // 在实际项目中应使用安全的密码比较方法
+      // 这里简化为直接比较，实际项目中应使用bcrypt等
+      if (user.password_hash !== password) {
+        throw new Error('用户名或密码错误');
+      }
+
+      // 登录成功后更新认证状态
+      const session = {
+        user_id: user.id,
+        email: user.email,
+        role: user.role,
+        name: user.name
+      };
+
+      // 保存会话信息到本地存储
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('session', JSON.stringify(session));
+      }
+
+      return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role as UserRole,
+        createdAt: new Date(user.created_at)
+      };
     } catch (error) {
       console.error('登录失败:', error);
-      return null;
+      throw error;
     }
   },
-  
-  // 注册方法
-  register: async (data: RegisterData): Promise<User | null> => {
+
+  /**
+   * 用户注册
+   * @param name 用户名
+   * @param email 邮箱
+   * @param password 密码
+   * @returns 新注册的用户信息
+   */
+  register: async (name: string, email: string, password: string): Promise<User | null> => {
     try {
-      const newUser: User = {
-        id: `user${Date.now()}`,
-        email: data.email,
-        name: data.name,
-        role: data.role || UserRole.CUSTOMER,
-        createdAt: new Date(),
-      };
-      
-      // 在真实应用中会将新用户添加到数据库
-      // 这里仅返回模拟的用户对象
-      saveSession(newUser);
-      return newUser;
+      // 检查邮箱是否已被使用
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', email)
+        .single();
+
+      if (existingUser) {
+        throw new Error('该邮箱已被注册');
+      }
+
+      // 创建新用户
+      const { data: user, error } = await supabase
+        .from('users')
+        .insert([
+          {
+            name,
+            email,
+            password_hash: password, // 实际项目中应哈希密码
+            role: 'customer' // 默认角色是普通用户
+          }
+        ])
+        .select()
+        .single();
+
+      if (error || !user) {
+        console.error('注册失败:', error);
+        throw new Error('注册失败: ' + (error?.message || '未知错误'));
+      }
+
+      // 注册成功后自动登录
+      return await AuthService.login(email, password);
     } catch (error) {
       console.error('注册失败:', error);
-      return null;
+      throw error;
     }
   },
-  
-  // 登出方法
+
+  /**
+   * 退出登录
+   */
   logout: async (): Promise<void> => {
-    clearSession();
+    // 清除本地会话信息
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('session');
+    }
   },
-  
-  // 获取当前用户
-  getCurrentUser: (): User | null => {
-    return getSession();
-  },
-  
-  // 初始化会话
-  initSession: async (): Promise<User | null> => {
-    return getSession();
+
+  /**
+   * 获取当前登录用户信息
+   * @returns 当前用户信息
+   */
+  getCurrentUser: async (): Promise<User | null> => {
+    try {
+      // 从本地存储获取会话信息
+      let session;
+      if (typeof window !== 'undefined') {
+        const sessionStr = localStorage.getItem('session');
+        if (sessionStr) {
+          session = JSON.parse(sessionStr);
+        }
+      }
+
+      if (!session || !session.user_id) {
+        return null;
+      }
+
+      // 获取用户信息
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', session.user_id)
+        .single();
+
+      if (error || !user) {
+        console.error('获取当前用户失败:', error);
+        AuthService.logout(); // 如果获取用户失败，清除会话
+        return null;
+      }
+
+      return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role as UserRole,
+        createdAt: new Date(user.created_at)
+      };
+    } catch (error) {
+      console.error('获取当前用户失败:', error);
+      return null;
+    }
   }
 }; 

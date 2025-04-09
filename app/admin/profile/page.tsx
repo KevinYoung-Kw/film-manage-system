@@ -9,18 +9,58 @@ import { User, BarChart, Film, Calendar, Settings, LogOut, Users, DollarSign } f
 import MobileLayout from '@/app/components/layout/MobileLayout';
 import { Card } from '@/app/components/ui/Card';
 import Button from '@/app/components/ui/Button';
-import { mockAdminStats } from '@/app/lib/mockData';
 import { userRoutes } from '@/app/lib/utils/navigation';
 import { useAppContext } from '@/app/lib/context/AppContext';
+import { StatsService } from '@/app/lib/services/statsService';
+
+// 统计数据类型
+interface StatsData {
+  totalSales: number;
+  ticketsSold: number;
+  averageOccupancy: number;
+  popularMovie: string;
+}
 
 export default function AdminProfilePage() {
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<StatsData>({
+    totalSales: 0,
+    ticketsSold: 0,
+    averageOccupancy: 0,
+    popularMovie: ''
+  });
+  const [isLoading, setIsLoading] = useState(true);
   const { currentUser, logout } = useAppContext();
   
   useEffect(() => {
-    // 获取统计数据
-    setStats(mockAdminStats);
-  }, []);
+    async function loadStats() {
+      if (!currentUser) return;
+      
+      setIsLoading(true);
+      try {
+        // 使用StatsService获取系统概览统计数据
+        const overview = await StatsService.getSystemOverview();
+        
+        setStats({
+          totalSales: overview.totalSales || 0,
+          ticketsSold: overview.ticketsSold || 0,
+          averageOccupancy: overview.averageOccupancy || 0,
+          popularMovie: overview.popularMovie || '无热映电影'
+        });
+      } catch (error) {
+        console.error('加载管理员统计数据失败:', error);
+        setStats({
+          totalSales: 0,
+          ticketsSold: 0,
+          averageOccupancy: 0,
+          popularMovie: '加载失败'
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    
+    loadStats();
+  }, [currentUser]);
   
   if (!currentUser) {
     return <div className="p-4 text-center">加载中...</div>;
@@ -32,7 +72,6 @@ export default function AdminProfilePage() {
   };
   
   return (
-
     <div className="pb-20">
       {/* 用户信息卡片 */}
       <div className="relative bg-indigo-600 text-white p-6 pb-16">
@@ -104,24 +143,31 @@ export default function AdminProfilePage() {
       <div className="px-4 mb-4">
         <h3 className="font-medium mb-3">系统概览</h3>
         <Card>
-          <div className="p-4 grid grid-cols-2 gap-4">
-            <div className="bg-slate-50 p-3 rounded-lg">
-              <div className="text-sm text-slate-500">今日销售额</div>
-              <div className="text-xl font-semibold mt-1">¥{stats?.totalSales || 0}</div>
+          {isLoading ? (
+            <div className="p-4 text-center">
+              <div className="animate-spin h-5 w-5 border-2 border-indigo-500 border-t-transparent rounded-full mx-auto"></div>
+              <p className="text-sm text-gray-500 mt-2">加载中...</p>
             </div>
-            <div className="bg-slate-50 p-3 rounded-lg">
-              <div className="text-sm text-slate-500">售出票数</div>
-              <div className="text-xl font-semibold mt-1">{stats?.ticketsSold || 0}</div>
+          ) : (
+            <div className="p-4 grid grid-cols-2 gap-4">
+              <div className="bg-slate-50 p-3 rounded-lg">
+                <div className="text-sm text-slate-500">今日销售额</div>
+                <div className="text-xl font-semibold mt-1">¥{stats.totalSales.toLocaleString()}</div>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-lg">
+                <div className="text-sm text-slate-500">售出票数</div>
+                <div className="text-xl font-semibold mt-1">{stats.ticketsSold}</div>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-lg">
+                <div className="text-sm text-slate-500">上座率</div>
+                <div className="text-xl font-semibold mt-1">{stats.averageOccupancy}%</div>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-lg">
+                <div className="text-sm text-slate-500">热映电影</div>
+                <div className="text-xl font-semibold mt-1 truncate">{stats.popularMovie}</div>
+              </div>
             </div>
-            <div className="bg-slate-50 p-3 rounded-lg">
-              <div className="text-sm text-slate-500">上座率</div>
-              <div className="text-xl font-semibold mt-1">{stats?.averageOccupancy || 0}%</div>
-            </div>
-            <div className="bg-slate-50 p-3 rounded-lg">
-              <div className="text-sm text-slate-500">热映电影</div>
-              <div className="text-xl font-semibold mt-1 truncate">星际迷航</div>
-            </div>
-          </div>
+          )}
         </Card>
       </div>
       
@@ -157,6 +203,5 @@ export default function AdminProfilePage() {
         </Card>
       </div>
     </div>
-
   );
 } 
