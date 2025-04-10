@@ -402,44 +402,50 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
     }
   }, []);
 
-  // 刷新数据
+  // 刷新数据方法
   const refreshData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [moviesData, theatersData, showtimesData, todayShowtimesData] = await Promise.all([
+      // 先加载基础数据
+      const [moviesData, theatersData] = await Promise.all([
         MovieService.getAllMovies(),
-        TheaterService.getAllTheaters(),
-        ShowtimeService.getAllShowtimes(),
-        ShowtimeService.getTodayShowtimes()
+        TheaterService.getAllTheaters()
       ]);
       
       setMovies(moviesData);
       setTheaters(theatersData);
-      setShowtimes(showtimesData);
+      
+      // 然后加载场次数据
+      // 先获取今日场次
+      const todayShowtimesData = await ShowtimeService.getTodayShowtimes();
       setTodayShowtimes(todayShowtimesData);
       
-      // 如果用户已登录，刷新订单数据
-      if (currentUser) {
-        let userOrders;
+      // 获取全部场次（包括未来场次）
+      const allShowtimesData = await ShowtimeService.getAllShowtimes();
+      setShowtimes(allShowtimesData);
+      
+      // 根据用户角色加载订单
+      if (isAuthenticated && currentUser) {
+        let ordersData;
         if (currentUser.role === UserRole.CUSTOMER) {
-          userOrders = await OrderService.getOrdersByUserId(currentUser.id);
-        } else {
-          userOrders = await OrderService.getAllOrders();
+          ordersData = await OrderService.getOrdersByUserId(currentUser.id);
+        } else if (currentUser.role === UserRole.STAFF || currentUser.role === UserRole.ADMIN) {
+          ordersData = await OrderService.getAllOrders();
         }
-        setOrders(userOrders);
         
-        // 如果是工作人员或管理员，获取操作记录
-        if (currentUser.role === UserRole.STAFF || currentUser.role === UserRole.ADMIN) {
-          const operations = await getStaffOperations();
-          setStaffOperations(operations);
+        if (ordersData) {
+          setOrders(ordersData);
         }
       }
+      
+      // 添加日志
+      console.log('[AppContext] 数据刷新完成');
     } catch (error) {
-      console.error('刷新数据失败:', error);
+      console.error('[AppContext] 刷新数据失败:', error);
     } finally {
       setIsLoading(false);
     }
-  }, [currentUser, getStaffOperations]);
+  }, [isAuthenticated, currentUser]);
 
   // 搜索电影
   const searchMovies = useCallback(async (query: string): Promise<Movie[]> => {

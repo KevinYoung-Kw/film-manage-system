@@ -31,7 +31,26 @@ export default function ShowtimeDetailClient({ showtime, movie, theater }: Showt
   
   // 检查场次是否已过期
   const now = new Date();
-  const isExpired = new Date(showtime.startTime) < now;
+  const showtimeDate = new Date(showtime.startTime);
+  
+  // 获取日期部分进行比较
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const showtimeDay = new Date(showtimeDate);
+  showtimeDay.setHours(0, 0, 0, 0);
+  
+  // 未来日期的场次永远不会过期
+  const isFutureDay = showtimeDay > today;
+  
+  // 计算开场后的分钟数
+  const minutesAfterStart = showtimeDate < now ? 
+    Math.floor((now.getTime() - showtimeDate.getTime()) / (1000 * 60)) : 0;
+  
+  // 只有当场次日期是当天或过去的日期，且开场超过15分钟才算真正过期
+  const isExpired = !isFutureDay && showtimeDate < now && minutesAfterStart > 15;
+  
+  // 是否已开场但在允许购票时间内
+  const isStartedButAllowed = showtimeDate < now && minutesAfterStart <= 15;
   
   // 组件挂载时设置选中的场次，只执行一次
   useEffect(() => {
@@ -42,12 +61,9 @@ export default function ShowtimeDetailClient({ showtime, movie, theater }: Showt
     
     // 如果场次已过期，自动跳转到场次列表页面
     if (isExpired) {
-      // 设置一个短暂的延迟，让用户有时间看到过期提示
-      const timer = setTimeout(() => {
-        router.push('/user/showtimes');
-      }, 3000);
-      
-      return () => clearTimeout(timer);
+      // 立即跳转到场次列表页面，不设置延迟
+      router.push('/user/showtimes');
+      return;
     }
     
     // 清理函数
@@ -151,13 +167,13 @@ export default function ShowtimeDetailClient({ showtime, movie, theater }: Showt
 
   return (
     <MobileLayout title="选座购票" showBackButton>
-      {/* 过期场次提示 */}
-      {isExpired && (
-        <div className="p-4 bg-red-50 flex items-center text-red-600 border-b border-red-100">
+      {/* 已开场但仍可购票提示 */}
+      {isStartedButAllowed && (
+        <div className="p-4 bg-yellow-50 flex items-center text-yellow-600 border-b border-yellow-100">
           <AlertTriangle className="h-5 w-5 mr-2" />
           <div>
-            <p className="font-medium">该场次已过期</p>
-            <p className="text-sm">无法购买已过期的电影票，即将返回场次列表</p>
+            <p className="font-medium">该场次已开始放映</p>
+            <p className="text-sm">您还有 {15 - minutesAfterStart} 分钟的时间完成购票，请尽快选座并支付</p>
           </div>
         </div>
       )}

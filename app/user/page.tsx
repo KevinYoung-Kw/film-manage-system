@@ -6,12 +6,14 @@ import Image from 'next/image';
 import MobileLayout from '@/app/components/layout/MobileLayout';
 import { Card, CardContent } from '@/app/components/ui/Card';
 import MovieCard from '@/app/components/MovieCard';
-import { defaultImages } from '@/app/lib/mockData';
 import { Film, Calendar, Ticket, ChevronRight } from 'lucide-react';
 import { MovieStatus, Movie } from '@/app/lib/types';
 import { useAppContext } from '@/app/lib/context/AppContext';
 import { processImageUrl } from '@/app/lib/services/dataService';
 import supabase from '@/app/lib/services/supabaseClient';
+
+// 定义默认图片路径
+const DEFAULT_BANNER = '/images/default-banner.webp';
 
 export default function UserHome() {
   const { movies, refreshData, isLoading } = useAppContext();
@@ -47,7 +49,24 @@ export default function UserHome() {
       }
     };
     
+    // 获取站点信息
+    const fetchSiteInfo = async () => {
+      try {
+        const { data } = await supabase
+          .from('site_info')
+          .select('*')
+          .single();
+          
+        if (data) {
+          setSiteInfo(data);
+        }
+      } catch (error) {
+        console.error('获取站点信息失败:', error);
+      }
+    };
+    
     fetchBanners();
+    fetchSiteInfo();
   }, [refreshData]);
   
   useEffect(() => {
@@ -70,7 +89,7 @@ export default function UserHome() {
   // 获取有效的banner图片URL
   const bannerImageUrl = featuredBanner 
     ? processImageUrl(featuredBanner.imageUrl) 
-    : '/images/default-banner.webp';
+    : DEFAULT_BANNER;
   
   return (
     <MobileLayout title="首页" showBackButton={false}>

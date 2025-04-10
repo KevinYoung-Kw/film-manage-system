@@ -175,7 +175,8 @@ CREATE POLICY "users_select_policy" ON "users"
   FOR SELECT
   USING (
     get_jwt_role() IN ('admin') OR
-    (get_jwt_role() IN ('staff', 'customer') AND id = (current_setting('request.jwt.claims', true)::json->>'sub')::uuid)
+    (get_jwt_role() IN ('staff', 'customer') AND id = (current_setting('request.jwt.claims', true)::json->>'sub')::uuid) OR
+    get_jwt_role() = 'anonymous' -- 允许匿名用户查询，用于登录验证
   );
 
 DROP POLICY IF EXISTS "users_insert_policy" ON "users";

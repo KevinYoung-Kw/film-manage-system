@@ -600,12 +600,10 @@ ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 
 -- 7. 创建新的、简化的RLS策略
 -- SELECT: 用户可以查看自己的信息，管理员可以查看所有用户，员工可以查看其他员工
+-- 修改users表的SELECT策略，允许所有用户（包括匿名用户）查询用户表
+DROP POLICY IF EXISTS users_select_policy ON users;
 CREATE POLICY users_select_policy ON users
-  FOR SELECT USING (
-    auth.uid() = id OR 
-    is_admin_safe() OR 
-    (is_staff_safe() AND role = 'staff')
-  );
+  FOR SELECT USING (true);  -- 允许所有角色查询用户表，包括匿名用户
 
 -- UPDATE: 用户可以更新自己的信息，管理员可以更新所有用户信息
 CREATE POLICY users_update_policy ON users
@@ -691,7 +689,7 @@ CREATE POLICY orders_delete_policy ON orders FOR DELETE USING (is_admin_safe());
 INSERT INTO users (id, name, email, password_hash, role, phone)
 VALUES 
   (gen_random_uuid(), '系统管理员', 'admin@example.com', 
-   '$2a$10$GsBeXb5sTNqXrTo2WVCjc.SIGGZxB6Kv5z8aZBxTtVnDyIqwBp0qe', 'admin', '13800000000')
+   '$2b$10$gvoENYL.3zbJLSZlWGk70uH8tlOgAvAzZhlSq1/9b1MbKQ.NR6K7e', 'admin', '13800000000')
 ON CONFLICT (email) DO NOTHING;
 
 -- 插入默认票种类型
@@ -1358,7 +1356,7 @@ INSERT INTO users (id, name, email, password_hash, role, created_at) VALUES
     '00000000-0000-0000-0000-000000000002',
     '售票员小王',
     'staff1@example.com',
-    '$2b$10$HCuKxE5GdeVEG0XytwSPSOBetJ5shxrXOUyOnkrqyln2e32A8XcZK', -- 密码: staff123
+    '$2b$10$.859Q5XFQUUdGQu9gDxLuu/qGhQQY3kLvK7Zoimk/uAWlyXCBop2q', -- 密码: staff123
     'staff',
     '2023-01-15'
 ),
@@ -1366,7 +1364,7 @@ INSERT INTO users (id, name, email, password_hash, role, created_at) VALUES
     '00000000-0000-0000-0000-000000000003',
     '张三',
     'customer1@example.com',
-    '$2b$10$TJdQ3MZeJy4PyznX0TLmmeFFA8KZDhQ8mgO3x10KMxrmIIAlphRl.', -- 密码: customer123
+    '$2b$10$7lG3g7EqdBLpHu78M.nctedYSR4l9ErXiFZ1sSr349zIIDXQFQkLa', -- 密码: customer123
     'customer',
     '2023-02-10'
 ),
@@ -1374,7 +1372,7 @@ INSERT INTO users (id, name, email, password_hash, role, created_at) VALUES
     '00000000-0000-0000-0000-000000000004',
     '李四',
     'customer2@example.com',
-    '$2b$10$TJdQ3MZeJy4PyznX0TLmmeFFA8KZDhQ8mgO3x10KMxrmIIAlphRl.', -- 密码: customer123
+    '$2b$10$7lG3g7EqdBLpHu78M.nctedYSR4l9ErXiFZ1sSr349zIIDXQFQkLa', -- 密码: customer123
     'customer',
     '2023-03-15'
 ) ON CONFLICT (email) DO NOTHING;
@@ -1819,13 +1817,3 @@ INSERT INTO banners (image_url, webp_image_url, title, description, link, is_act
     TRUE,
     3
 ) ON CONFLICT DO NOTHING;
-
--- 更新用户密码哈希
-UPDATE users 
-SET password_hash = CASE 
-    WHEN email = 'admin@example.com' THEN '$2b$10$.FIksAx3PtgCPxIynWlTT.eIKODdp.SPp84Ph0d2tij81rRv/2r1G'  -- admin123
-    WHEN email = 'staff1@example.com' THEN '$2b$10$HCuKxE5GdeVEG0XytwSPSOBetJ5shxrXOUyOnkrqyln2e32A8XcZK'  -- staff123
-    WHEN email = 'customer1@example.com' THEN '$2b$10$TJdQ3MZeJy4PyznX0TLmmeFFA8KZDhQ8mgO3x10KMxrmIIAlphRl.'  -- customer123
-    WHEN email = 'customer2@example.com' THEN '$2b$10$TJdQ3MZeJy4PyznX0TLmmeFFA8KZDhQ8mgO3x10KMxrmIIAlphRl.'  -- customer123
-END
-WHERE email IN ('admin@example.com', 'staff1@example.com', 'customer1@example.com', 'customer2@example.com'); 

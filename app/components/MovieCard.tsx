@@ -7,9 +7,12 @@ import { Star } from 'lucide-react';
 import { format } from 'date-fns';
 import { Card } from './ui/Card';
 import { Movie } from '../lib/types';
-import { defaultImages } from '../lib/mockData';
 import { userRoutes } from '../lib/utils/navigation';
 import { processImageUrl } from '../lib/services/dataService';
+
+// 定义默认图片路径常量
+const DEFAULT_MOVIE_POSTER = '/images/default-poster.jpg';
+const DEFAULT_WEBP_MOVIE_POSTER = '/images/default-poster.webp';
 
 interface MovieCardProps {
   movie: Movie;
@@ -33,7 +36,9 @@ const MovieCard: React.FC<MovieCardProps> = ({
     : '未知日期';
   
   // 获取封面图片，使用processImageUrl确保有效路径
-  const posterSrc = processImageUrl(movie.webpPoster || movie.poster);
+  const posterSrc = processImageUrl(
+    movie.webpPoster || movie.poster || DEFAULT_WEBP_MOVIE_POSTER || DEFAULT_MOVIE_POSTER
+  );
   
   // 确保所有需要的数据字段都存在
   const title = movie.title || '无标题电影';

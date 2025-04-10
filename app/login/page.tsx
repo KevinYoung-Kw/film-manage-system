@@ -109,6 +109,11 @@ export default function LoginPage() {
     setEmail(account.email);
     setPassword(account.password);
     
+    console.log('尝试使用演示账户登录:', {
+      email: account.email,
+      password: account.password
+    });
+    
     setIsLoading(true);
     setError('');
     setDetailedError(null);
@@ -127,7 +132,9 @@ export default function LoginPage() {
         throw new Error('演示账户不存在或查询失败');
       }
 
+      console.log('开始调用登录函数...');
       const user = await login(account.email, account.password);
+      console.log('登录函数返回结果:', user);
       
       if (user) {
         redirectToRolePage(user.role);

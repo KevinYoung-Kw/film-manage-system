@@ -9,16 +9,23 @@ import MobileLayout from '@/app/components/layout/MobileLayout';
 import { Card } from '@/app/components/ui/Card';
 import Button from '@/app/components/ui/Button';
 import { CheckCircle, Clock, Calendar, MapPin } from 'lucide-react';
-import { defaultImages, mockShowtimes, mockMovies, mockTheaters } from '@/app/lib/mockData';
+// 移除对mockData的依赖
+// import { defaultImages, mockShowtimes, mockMovies, mockTheaters } from '@/app/lib/mockData';
 import { userRoutes } from '@/app/lib/utils/navigation';
 import { useAppContext } from '@/app/lib/context/AppContext';
+import { ShowtimeService } from '@/app/lib/services/showtimeService';
+import { MovieService } from '@/app/lib/services/movieService';
+import { TheaterService } from '@/app/lib/services/theaterService';
+
+// 定义默认图片路径常量
+const DEFAULT_MOVIE_POSTER = '/images/default-poster.jpg';
 
 export default function OrderSuccessPage() {
   const router = useRouter();
   const params = useParams();
   const orderId = typeof params.id === 'string' ? params.id : Array.isArray(params.id) ? params.id[0] : '';
   
-  const { orders, refreshData } = useAppContext();
+  const { orders, refreshData, movies, theaters, showtimes } = useAppContext();
   const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState<any>(null);
   const [movie, setMovie] = useState<any>(null);
@@ -31,42 +38,77 @@ export default function OrderSuccessPage() {
   }, [refreshData]);
   
   useEffect(() => {
-    if (!orderId || orders.length === 0) return;
+    if (!orderId) return;
     
-    // 从AppContext中获取订单信息
-    const currentOrder = orders.find(o => o.id === orderId);
+    const fetchOrderData = async () => {
+      setLoading(true);
+      
+      try {
+        // 从AppContext中获取订单信息
+        const currentOrder = orders.find(o => o.id === orderId);
+        
+        if (!currentOrder) {
+          router.push(userRoutes.orders);
+          return;
+        }
+        
+        setOrder(currentOrder);
+        
+        // 获取场次信息
+        let showtimeData = showtimes.find(s => s.id === currentOrder.showtimeId);
+        if (!showtimeData) {
+          // 如果在上下文中找不到，尝试从API获取
+          showtimeData = await ShowtimeService.getShowtimeById(currentOrder.showtimeId);
+          if (!showtimeData) {
+            router.push(userRoutes.orders);
+            return;
+          }
+        }
+        
+        setShowtime(showtimeData);
+        
+        // 获取电影和影院信息
+        let movieData = movies.find(m => m.id === showtimeData.movieId);
+        if (!movieData) {
+          const fetchedMovie = await MovieService.getMovieById(showtimeData.movieId);
+          if (!fetchedMovie) {
+            console.error('未找到电影信息');
+          } else {
+            movieData = fetchedMovie;
+          }
+        }
+        
+        if (movieData) setMovie(movieData);
+        
+        let theaterData = theaters.find(t => t.id === showtimeData.theaterId);
+        if (!theaterData) {
+          const fetchedTheater = await TheaterService.getTheaterById(showtimeData.theaterId);
+          if (!fetchedTheater) {
+            console.error('未找到影厅信息');
+          } else {
+            theaterData = fetchedTheater;
+          }
+        }
+        
+        if (theaterData) setTheater(theaterData);
+      } catch (error) {
+        console.error('获取订单数据失败:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
     
-    if (!currentOrder) {
-      router.push(userRoutes.orders);
-      return;
-    }
-    
-    setOrder(currentOrder);
-    
-    // 获取场次信息
-    const showtimeData = mockShowtimes.find(s => s.id === currentOrder.showtimeId);
-    if (!showtimeData) {
-      router.push(userRoutes.orders);
-      return;
-    }
-    
-    setShowtime(showtimeData);
-    
-    // 获取电影和影院信息
-    const movieData = mockMovies.find(m => m.id === showtimeData.movieId);
-    if (movieData) setMovie(movieData);
-    
-    const theaterData = mockTheaters.find(t => t.id === showtimeData.theaterId);
-    if (theaterData) setTheater(theaterData);
-    
-    setLoading(false);
-  }, [orderId, orders, router]);
+    fetchOrderData();
+  }, [orderId, orders, router, showtimes, movies, theaters]);
   
   if (loading || !order || !movie) {
     return (
       <MobileLayout title="订单确认" showBackButton>
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-pulse">加载中...</div>
+        <div className="flex justify-center items-center min-h-[60vh]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mx-auto"></div>
+            <p className="mt-4 text-slate-500">加载订单信息...</p>
+          </div>
         </div>
       </MobileLayout>
     );
@@ -101,7 +143,7 @@ export default function OrderSuccessPage() {
           <div className="flex space-x-3">
             <div className="relative h-20 w-14 rounded overflow-hidden">
               <Image
-                src={movie.poster || defaultImages.moviePoster}
+                src={movie.poster || DEFAULT_MOVIE_POSTER}
                 alt={movie.title}
                 fill
                 className="object-cover"
@@ -132,15 +174,21 @@ export default function OrderSuccessPage() {
           <div className="flex flex-wrap gap-2">
             {order.seats.map((seatId: string) => {
               const seat = showtime?.availableSeats.find((s: any) => s.id === seatId);
-              if (!seat) return null;
-              
-              // 转换为字母行号 (A, B, C...)
-              const rowLabel = String.fromCharCode(64 + seat.row);
-              const seatLabel = `${rowLabel}${seat.column}`;
+              if (!seat) {
+                // 如果找不到座位详情，直接展示座位ID中的行列信息
+                const parts = seatId.split('-');
+                const row = parts[parts.length - 2];
+                const col = parts[parts.length - 1];
+                return (
+                  <span key={seatId} className="bg-slate-100 px-2 py-1 rounded text-sm">
+                    {row}排{col}座
+                  </span>
+                );
+              }
               
               return (
-                <span key={seatId} className="bg-gray-100 px-2 py-1 rounded text-sm">
-                  {seatLabel}
+                <span key={seatId} className="bg-slate-100 px-2 py-1 rounded text-sm">
+                  {seat.row}排{seat.column}座
                 </span>
               );
             })}

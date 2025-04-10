@@ -16,6 +16,8 @@
 4. 修正了表名引用错误（将 `bookings`/`booking_seats` 更正为 `orders`/`order_seats`）
 5. 修正了视图权限问题（视图不支持RLS策略，改用授权语句）
 6. 优化了视图授权方式，添加存在性检查避免错误
+7. **修复了匿名用户无法查询用户表的问题**
+8. **整合了多个认证相关SQL文件为一个统一的文件**
 
 ### 如何应用这些更改
 
@@ -26,19 +28,20 @@
 3. 转到 SQL 编辑器，然后依次执行以下SQL脚本：
 
    a. 如果数据库是新的或需要重置：先执行 `supabase/migrations/DATABASE_RESET.sql`
-   b. `supabase/migrations/create_session_function.sql`
-   c. `supabase/migrations/rls_policies.sql`
-   d. `supabase/migrations/enable_rpc_functions.sql`
+   b. **执行 `supabase/migrations/auth_and_security.sql`**（替代之前的三个分散文件）
 
 4. 执行脚本后，重启应用程序
+
+> **注意**：新的 `auth_and_security.sql` 文件整合了之前的三个文件（`create_session_function.sql`、`rls_policies.sql` 和 `enable_rpc_functions.sql`），并做了关键修改以允许匿名用户查询用户表。
 
 ### 验证修复
 
 应用这些更改后，你的应用程序应该能够：
 
 1. 正常登录和注册用户
-2. 访问所有数据表，包括电影、影厅和场次信息，而不会出现权限错误
+2. 访问所有数据表，包括电影、影厅和场次信息，而不会出现权限错误 
 3. 根据当前用户的角色正确应用行级安全策略
+4. **匿名用户应该能够查询用户表以进行登录验证**
 
 ## 附加信息
 
@@ -63,7 +66,22 @@
 请注意：
 - 数据库设计中使用的是 `orders` 和 `order_seats`，而不是 `bookings` 和 `booking_seats`
 - PostgreSQL 中视图不支持行级安全策略(RLS)，而是通过授权(`GRANT`)语句控制访问权限
-- 视图需要先执行 `DATABASE_RESET.sql` 创建，否则 `rls_policies.sql` 中的视图授权会被跳过
+- 视图需要先执行 `DATABASE_RESET.sql` 创建，否则 `auth_and_security.sql` 中的视图授权会被跳过
+
+### 文件结构优化
+
+我们对SQL文件结构进行了以下优化：
+
+| 之前的文件 | 现在的文件 | 备注 |
+|------------|------------|------|
+| create_session_function.sql | auth_and_security.sql | 整合到一个文件中 |
+| rls_policies.sql | auth_and_security.sql | 整合到一个文件中 |
+| enable_rpc_functions.sql | auth_and_security.sql | 整合到一个文件中 |
+
+新的 `auth_and_security.sql` 文件被划分为三个部分：
+1. 创建用户会话函数
+2. 行级安全策略
+3. 启用RPC函数的外部访问
 
 ### JWT格式
 

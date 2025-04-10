@@ -8,7 +8,12 @@ import { Clock, Film } from 'lucide-react';
 import { Card } from './ui/Card';
 import { Showtime, Movie, Theater, TicketType } from '../lib/types';
 import { zhCN } from 'date-fns/locale';
-import { defaultImages } from '../lib/mockData';
+// 移除对mockData的依赖
+// import { defaultImages } from '../lib/mockData';
+
+// 定义默认图片路径常量
+const DEFAULT_MOVIE_POSTER = '/images/default-poster.jpg';
+const DEFAULT_WEBP_MOVIE_POSTER = '/images/default-poster.webp';
 
 interface ShowtimeCardProps {
   showtime: Showtime;
@@ -39,10 +44,26 @@ const ShowtimeCard: React.FC<ShowtimeCardProps> = ({
   
   // 检查场次是否已过期
   const now = new Date();
-  const isExpired = new Date(showtime.startTime) < now;
+  const showtimeDate = new Date(showtime.startTime);
+  // 计算开场后的分钟数，仅当场次日期是今天或已过去时才有意义
+  const minutesAfterStart = showtimeDate < now ? 
+    Math.floor((now.getTime() - showtimeDate.getTime()) / (1000 * 60)) : 0;
+  
+  // 只有当场次日期是当天或过去的日期，且开场超过15分钟才算真正过期
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const showtimeDay = new Date(showtimeDate);
+  showtimeDay.setHours(0, 0, 0, 0);
+  
+  // 未来日期的场次永远不会过期
+  const isFutureDay = showtimeDay > today;
+  const isExpired = !isFutureDay && showtimeDate < now && minutesAfterStart > 15;
+
+  // 是否已开场但在允许购票时间内（当天场次且开场后15分钟内）
+  const isStartedButAllowed = showtimeDate < now && minutesAfterStart <= 15;
 
   // 选择最佳海报图片，优先使用webp格式
-  const posterSrc = movie.webpPoster || movie.poster || defaultImages.webpMoviePoster;
+  const posterSrc = movie.webpPoster || movie.poster || DEFAULT_WEBP_MOVIE_POSTER || DEFAULT_MOVIE_POSTER;
   
   return (
     <Card className={`p-3 ${className}`} withHover>
@@ -114,6 +135,13 @@ const ShowtimeCard: React.FC<ShowtimeCardProps> = ({
         >
           已过期
         </button>
+      ) : isStartedButAllowed ? (
+        <Link 
+          href={`/showtimes/${showtime.id}`}
+          className="block w-full text-center bg-yellow-500 text-white py-2 rounded-md mt-3 text-sm font-medium hover:bg-yellow-600 transition-colors"
+        >
+          抢购（剩余{15 - minutesAfterStart}分钟）
+        </Link>
       ) : (
         <Link 
           href={`/showtimes/${showtime.id}`}

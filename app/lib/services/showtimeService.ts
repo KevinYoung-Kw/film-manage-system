@@ -378,5 +378,68 @@ export const ShowtimeService = {
       console.error('删除场次失败:', error);
       return false;
     }
-  }
+  },
+  
+  // 获取指定日期的场次
+  getShowtimesByDate: async (date: Date): Promise<Showtime[]> => {
+    try {
+      // 将输入日期转换为ISO日期格式字符串 (YYYY-MM-DD)
+      const dateStr = date.toISOString().split('T')[0];
+      
+      // 构建查询
+      const { data, error } = await supabase
+        .from('showtimes')
+        .select(`
+          id,
+          movie_id,
+          theater_id,
+          start_time,
+          end_time,
+          price_normal,
+          price_student,
+          price_senior,
+          price_child,
+          movies(title, poster, webp_poster, duration),
+          theaters(name)
+        `)
+        .gte('start_time', `${dateStr}T00:00:00`)
+        .lt('start_time', `${dateStr}T23:59:59`)
+        .order('start_time');
+        
+      if (error) {
+        console.error(`获取${dateStr}场次失败:`, error);
+        return [];
+      }
+      
+      // 查询每个场次的座位数据
+      const showtimes = await Promise.all(
+        data.map(async (showtime) => {
+          const seats = await ShowtimeService.getSeatsForShowtime(showtime.id);
+          return {
+            id: showtime.id,
+            movieId: showtime.movie_id,
+            theaterId: showtime.theater_id,
+            movieTitle: showtime.movies ? showtime.movies.title : undefined,
+            moviePoster: showtime.movies ? (showtime.movies.webp_poster || showtime.movies.poster) : undefined,
+            movieDuration: showtime.movies ? showtime.movies.duration : undefined,
+            theaterName: showtime.theaters ? showtime.theaters.name : undefined,
+            startTime: new Date(showtime.start_time),
+            endTime: new Date(showtime.end_time),
+            price: {
+              [TicketType.NORMAL]: showtime.price_normal,
+              [TicketType.STUDENT]: showtime.price_student,
+              [TicketType.SENIOR]: showtime.price_senior,
+              [TicketType.CHILD]: showtime.price_child
+            },
+            availableSeats: seats
+          } as Showtime;
+        })
+      );
+      
+      return showtimes;
+    } catch (error) {
+      console.error(`获取日期场次失败:`, error);
+      return [];
+    }
+  },
 }; 

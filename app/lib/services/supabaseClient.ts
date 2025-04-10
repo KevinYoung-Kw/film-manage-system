@@ -16,6 +16,12 @@ const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
 // 添加修改后的signIn方法，执行正确的登录流程并获取访问令牌
 export const signInWithCredentials = async (email: string, role: string, userId: string) => {
   try {
+    console.log('准备调用create_user_session RPC函数:', {
+      p_user_id: userId,
+      p_email: email,
+      p_role: role
+    });
+    
     // 调用自定义的登录函数，获取有效的访问令牌
     const { data, error } = await supabase.rpc('create_user_session', {
       p_user_id: userId,
@@ -28,8 +34,11 @@ export const signInWithCredentials = async (email: string, role: string, userId:
       throw error;
     }
 
+    console.log('RPC函数调用结果:', data);
+
     if (data?.access_token) {
       // 使用获取的令牌设置认证状态
+      console.log('设置Supabase会话...');
       supabase.auth.setSession({
         access_token: data.access_token,
         refresh_token: data.refresh_token || ''
@@ -64,5 +73,8 @@ supabase.rpc = function(procedureName, params, options) {
       return response;
     });
 };
+
+// 创建一个管理员客户端（目前只是普通客户端的别名，实际项目中可能需要使用服务端角色密钥）
+export const supabaseAdmin = supabase;
 
 export default supabase; 

@@ -1,14 +1,83 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import MobileLayout from '@/app/components/layout/MobileLayout';
 import { Card } from '@/app/components/ui/Card';
-import { mockFAQs, siteInfo } from '@/app/lib/mockData';
 import { ChevronDown, ChevronUp, Search, Phone, Mail } from 'lucide-react';
+import supabase from '@/app/lib/services/supabaseClient';
+
+// 定义FAQ和SiteInfo接口
+interface FAQ {
+  id: string;
+  question: string;
+  answer: string;
+  category?: string;
+}
+
+interface SiteInfo {
+  name: string;
+  address: string;
+  phone: string;
+  email: string;
+  copyright: string;
+  workingHours: string;
+}
 
 export default function FAQPage() {
   const [openFAQs, setOpenFAQs] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [faqs, setFaqs] = useState<FAQ[]>([]);
+  const [siteInfo, setSiteInfo] = useState<SiteInfo>({
+    name: '电影票务系统',
+    address: '中国某省某市某区某街道123号',
+    phone: '400-123-4567',
+    email: 'support@example.com',
+    copyright: '© 2025 电影票务系统',
+    workingHours: '09:00 - 22:00'
+  });
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    // 获取FAQs数据
+    const fetchFAQs = async () => {
+      try {
+        setLoading(true);
+        const { data: faqsData, error: faqsError } = await supabase
+          .from('faqs')
+          .select('*')
+          .order('id');
+          
+        if (faqsError) {
+          console.error('获取FAQs失败:', faqsError);
+          return;
+        }
+        
+        if (faqsData) {
+          setFaqs(faqsData);
+        }
+        
+        // 获取网站信息
+        const { data: siteData, error: siteError } = await supabase
+          .from('site_info')
+          .select('*')
+          .single();
+          
+        if (siteError && siteError.code !== 'PGRST116') {
+          console.error('获取网站信息失败:', siteError);
+        }
+        
+        if (siteData) {
+          setSiteInfo(siteData);
+        }
+      } catch (error) {
+        console.error('获取数据出错:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchFAQs();
+  }, []);
   
   const toggleFAQ = (id: string) => {
     if (openFAQs.includes(id)) {
@@ -19,11 +88,11 @@ export default function FAQPage() {
   };
   
   const filteredFAQs = searchQuery 
-    ? mockFAQs.filter(faq => 
+    ? faqs.filter(faq => 
         faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
         faq.answer.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : mockFAQs;
+    : faqs;
   
   return (
     <MobileLayout title="常见问题">
@@ -47,7 +116,12 @@ export default function FAQPage() {
       <div className="px-4 py-2">
         <h2 className="text-lg font-semibold mb-4">常见问题</h2>
         
-        {filteredFAQs.length === 0 ? (
+        {loading ? (
+          <div className="text-center p-8">
+            <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-500 mx-auto"></div>
+            <p className="mt-4 text-slate-500">加载中...</p>
+          </div>
+        ) : filteredFAQs.length === 0 ? (
           <div className="text-center p-8">
             <p className="text-slate-500">未找到相关问题</p>
           </div>
