@@ -1,4 +1,4 @@
-import supabase from './supabaseClient';
+import supabase, { signInWithCredentials } from './supabaseClient';
 import { User, UserRole } from '../types';
 import bcrypt from 'bcryptjs';
 
@@ -44,7 +44,17 @@ export const AuthService = {
 
       console.log('密码验证成功');
 
-      // 登录成功后更新认证状态
+      // 创建Supabase会话
+      const sessionCreated = await signInWithCredentials(user.email, user.role, user.id);
+      
+      if (!sessionCreated) {
+        console.error('创建Supabase会话失败');
+        throw new Error('登录失败：无法创建会话');
+      }
+      
+      console.log('创建Supabase会话成功');
+
+      // 登录成功后存储会话信息到本地存储(用于UI显示)
       const session = {
         user_id: user.id,
         email: user.email,
@@ -113,7 +123,17 @@ export const AuthService = {
         throw new Error('注册失败: ' + (error?.message || '未知错误'));
       }
 
-      // 注册成功后自动登录
+      // 创建Supabase会话
+      const sessionCreated = await signInWithCredentials(user.email, user.role, user.id);
+      
+      if (!sessionCreated) {
+        console.error('创建Supabase会话失败');
+        throw new Error('注册成功但登录失败：无法创建会话');
+      }
+      
+      console.log('创建Supabase会话成功');
+
+      // 注册成功后存储会话信息到本地存储(用于UI显示)
       const session = {
         user_id: user.id,
         email: user.email,
@@ -147,6 +167,9 @@ export const AuthService = {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('session');
     }
+    
+    // 清除Supabase会话
+    await supabase.auth.signOut();
   },
 
   /**
@@ -179,6 +202,13 @@ export const AuthService = {
         console.error('获取当前用户失败:', error);
         AuthService.logout(); // 如果获取用户失败，清除会话
         return null;
+      }
+
+      // 检查并刷新会话
+      const { data: authSession } = await supabase.auth.getSession();
+      if (!authSession?.session) {
+        // 如果没有有效的会话，重新创建
+        await signInWithCredentials(user.email, user.role, user.id);
       }
 
       return {

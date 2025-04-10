@@ -10,44 +10,41 @@ const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false
-  },
-  global: {
-    // 添加自定义头部，确保API调用时携带认证信息
-    headers: {
-      // 如果在浏览器环境中，尝试从localStorage获取会话
-      get Authorization() {
-        if (typeof window !== 'undefined') {
-          try {
-            const sessionStr = localStorage.getItem('session');
-            if (!sessionStr) {
-              console.warn('未找到会话信息');
-              return '';
-            }
-            
-            const session = JSON.parse(sessionStr);
-            if (!session || !session.user_id) {
-              console.warn('会话信息无效');
-              return '';
-            }
-            
-            // 创建一个模拟的JWT格式，携带用户ID和角色
-            return `Bearer ${btoa(JSON.stringify({
-              sub: session.user_id,
-              role: session.role,
-              email: session.email
-            }))}`;
-          } catch (e) {
-            console.error('获取授权头信息失败:', e);
-            // 清除可能已损坏的会话数据
-            localStorage.removeItem('session');
-            return '';
-          }
-        }
-        return '';
-      }
-    }
   }
 });
+
+// 添加修改后的signIn方法，执行正确的登录流程并获取访问令牌
+export const signInWithCredentials = async (email: string, role: string, userId: string) => {
+  try {
+    // 调用自定义的登录函数，获取有效的访问令牌
+    const { data, error } = await supabase.rpc('create_user_session', {
+      p_user_id: userId,
+      p_email: email,
+      p_role: role
+    });
+
+    if (error) {
+      console.error('创建会话失败:', error);
+      throw error;
+    }
+
+    if (data?.access_token) {
+      // 使用获取的令牌设置认证状态
+      supabase.auth.setSession({
+        access_token: data.access_token,
+        refresh_token: data.refresh_token || ''
+      });
+      
+      return true;
+    } else {
+      console.error('获取访问令牌失败');
+      return false;
+    }
+  } catch (error) {
+    console.error('登录过程发生错误:', error);
+    return false;
+  }
+};
 
 // 添加响应拦截器处理常见错误
 const originalRpc = supabase.rpc.bind(supabase);
@@ -61,6 +58,8 @@ supabase.rpc = function(procedureName, params, options) {
         if (typeof window !== 'undefined') {
           localStorage.removeItem('session');
         }
+        // 清除Supabase会话
+        supabase.auth.signOut();
       }
       return response;
     });
