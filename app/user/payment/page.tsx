@@ -311,46 +311,28 @@ function PaymentContent() {
             }
           });
           
-          // 直接创建订单记录
-          const { data: orderData, error: orderError } = await supabase
-            .from('orders')
-            .insert({
-              id: newOrderId,
-              user_id: currentUser.id,
-              showtime_id: showtime.id,
-              ticket_type: TicketType.NORMAL,
-              total_price: totalPrice,
-              status: 'pending',
-              ticket_status: 'unused',
-              created_at: now.toISOString()
-            })
-            .select();
+          // 使用存储过程创建订单
+          console.log("调用create_order存储过程创建订单", {
+            p_user_id: currentUser.id,
+            p_showtime_id: showtime.id,
+            p_seat_ids: selectedSeats,
+            p_ticket_type: TicketType.NORMAL
+          });
           
-          if (orderError) {
-            throw new Error('创建订单失败: ' + orderError.message);
+          const { data: procData, error: procError } = await supabase.rpc('create_order', {
+            p_user_id: currentUser.id,
+            p_showtime_id: showtime.id,
+            p_seat_ids: selectedSeats,
+            p_ticket_type: TicketType.NORMAL,
+            p_payment_method_id: null
+          });
+          
+          if (procError || !procData || procData.length === 0 || !procData[0].success) {
+            throw new Error('创建订单失败: ' + (procError?.message || (procData && procData[0] ? procData[0].message : '未知错误')));
           }
           
-          // 添加订单座位关联
-          for (const seatId of selectedSeats) {
-            const { error: seatError } = await supabase
-              .from('order_seats')
-              .insert({
-                order_id: newOrderId,
-                seat_id: seatId
-              });
-            
-            if (seatError) {
-              throw new Error('添加座位失败: ' + seatError.message);
-            }
-            
-            // 更新座位状态为不可用
-            await supabase
-              .from('seats')
-              .update({ is_available: false })
-              .eq('id', seatId);
-          }
-          
-          targetOrderId = newOrderId;
+          // 获取创建的订单ID
+          targetOrderId = procData[0].order_id;
           console.log("新订单已创建:", targetOrderId);
         } catch (createError: any) {
           console.error("创建订单失败:", createError);
