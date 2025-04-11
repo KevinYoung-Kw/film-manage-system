@@ -156,7 +156,6 @@ export const StaffService = {
   ): Promise<{ success: boolean; message: string }> => {
     try {
       const { data, error } = await supabase.rpc('refund_ticket', {
-        
         p_order_id: orderId,
         p_staff_id: staffId,
         p_reason: reason
@@ -196,7 +195,7 @@ export const StaffService = {
     try {
       const { data, error } = await supabase.rpc('check_ticket', {
         p_order_id: orderId,
-        p_staff_id: staffId
+        p_staff_id: staffId // Supabase 会自动处理 UUID 转换
       });
 
       if (error) {

@@ -6,7 +6,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const orderId = params.id;
+    const { id: orderId } = params;
 
     if (!orderId) {
       return NextResponse.json({ error: '订单ID不能为空' }, { status: 400 });

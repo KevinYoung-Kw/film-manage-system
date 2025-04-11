@@ -135,6 +135,7 @@ export const OrderService = {
   /**
    * 创建订单
    * @param order 订单信息
+   * @param paymentMethodId 可选的支付方式ID，如果提供则自动支付
    * @returns 创建的订单
    */
   createOrder: async (order: {
@@ -142,22 +143,79 @@ export const OrderService = {
     showtimeId: string;
     seats: string[];
     ticketType: TicketType;
-  }): Promise<Order> => {
+  }, paymentMethodId?: string): Promise<Order> => {
     try {
+      console.log('开始创建订单:', order);
+      
       // 调用存储过程创建订单
       const { data, error } = await supabase.rpc('create_order', {
         p_user_id: order.userId,
         p_showtime_id: order.showtimeId,
         p_seat_ids: order.seats,
-        p_ticket_type: order.ticketType
+        p_ticket_type: order.ticketType,
+        p_payment_method_id: paymentMethodId
       });
       
       if (error || !data || data.length === 0 || !data[0].success) {
+        console.error('创建订单失败:', error || (data && data[0] ? data[0].message : '未知错误'));
         throw new Error('创建订单失败: ' + (error?.message || (data && data[0] ? data[0].message : '未知错误')));
       }
       
-      // 获取创建好的订单
+      // 获取创建好的订单ID
       const orderId = data[0].order_id;
+      console.log('订单创建成功:', orderId);
+      
+      // 如果提供了支付方式ID，但存储过程未处理支付（可能是因为存储过程不支持直接支付）
+      if (paymentMethodId && orderId) {
+        try {
+          // 检查订单状态，如果仍然是pending则添加支付记录
+          const { data: orderData, error: orderError } = await supabase
+            .from('orders')
+            .select('status, total_price')
+            .eq('id', orderId)
+            .single();
+          
+          if (!orderError && orderData && orderData.status === OrderStatus.PENDING) {
+            console.log('订单需要手动添加支付记录');
+            
+            // 插入支付记录
+            const { error: paymentError } = await supabase
+              .from('payments')
+              .insert({
+                order_id: orderId,
+                payment_method_id: paymentMethodId,
+                amount: orderData.total_price,
+                status: 'completed'
+              });
+            
+            if (paymentError) {
+              console.error('创建支付记录失败:', paymentError);
+            } else {
+              // 更新订单状态
+              const { error: updateError } = await supabase
+                .from('orders')
+                .update({
+                  status: OrderStatus.PAID,
+                  paid_at: new Date().toISOString()
+                })
+                .eq('id', orderId);
+              
+              if (updateError) {
+                console.error('更新订单状态失败:', updateError);
+              } else {
+                console.log('订单手动支付成功');
+              }
+            }
+          } else {
+            console.log('订单状态不需要处理或已处理:', orderData?.status);
+          }
+        } catch (paymentError) {
+          console.error('处理支付记录时发生错误:', paymentError);
+          // 不抛出异常，因为订单已经创建成功
+        }
+      }
+      
+      // 获取创建好的订单
       const newOrder = await OrderService.getOrderById(orderId);
       
       if (!newOrder) {
@@ -247,32 +305,63 @@ export const OrderService = {
    */
   payOrder: async (orderId: string, paymentMethodId: string): Promise<Order | null> => {
     try {
+      console.log('开始支付订单:', orderId, '支付方式:', paymentMethodId);
+      
       // 查询订单金额
       const { data: order, error: orderError } = await supabase
         .from('orders')
-        .select('total_price')
+        .select('total_price, status')
         .eq('id', orderId)
         .single();
       
       if (orderError) {
+        console.error('查询订单金额失败:', orderError);
         throw new Error(`查询订单金额失败: ${orderError.message}`);
       }
       
+      // 检查订单状态
+      if (order.status !== OrderStatus.PENDING) {
+        console.error('只有待支付状态的订单可以支付');
+        throw new Error('只有待支付状态的订单可以支付');
+      }
+      
+      console.log('订单金额:', order.total_price);
+      
       // 插入支付记录
-      const { error: paymentError } = await supabase
+      const { data: payment, error: paymentError } = await supabase
         .from('payments')
         .insert({
           order_id: orderId,
           payment_method_id: paymentMethodId,
           amount: order.total_price,
-          status: PaymentStatus.COMPLETED
-        });
+          status: 'completed'
+        })
+        .select()
+        .single();
       
       if (paymentError) {
+        console.error('创建支付记录失败:', paymentError);
         throw new Error(`创建支付记录失败: ${paymentError.message}`);
       }
       
-      // 支付记录创建成功后，触发器会自动更新订单状态为已支付
+      console.log('支付记录创建成功:', payment);
+      
+      // 支付记录创建成功后，手动更新订单状态为已支付
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({
+          status: OrderStatus.PAID,
+          paid_at: new Date().toISOString()
+        })
+        .eq('id', orderId);
+      
+      if (updateError) {
+        console.error('更新订单状态失败:', updateError);
+        throw new Error(`更新订单状态失败: ${updateError.message}`);
+      }
+      
+      console.log('订单状态更新成功');
+      
       // 获取更新后的订单
       return await OrderService.getOrderById(orderId);
     } catch (error) {
@@ -370,7 +459,15 @@ export const OrderService = {
     paymentMethodId: string
   ): Promise<{ success: boolean; message: string; orderId?: string; totalPrice?: number }> => {
     try {
-      // 调用存储过程售票
+      console.log('开始工作人员售票:',
+        '工作人员:', staffId,
+        '场次:', showtimeId,
+        '座位:', seatIds,
+        '票型:', ticketType,
+        '支付方式:', paymentMethodId
+      );
+      
+      // 调用存储过程创建订单并直接支付
       const { data, error } = await supabase.rpc('sell_ticket', {
         p_staff_id: staffId,
         p_showtime_id: showtimeId,
@@ -380,19 +477,77 @@ export const OrderService = {
       });
       
       if (error) {
+        console.error('售票失败:', error);
         throw new Error('售票失败: ' + error.message);
       }
       
-      if (Array.isArray(data) && data.length > 0) {
-        return { 
-          success: Boolean(data[0].success), 
-          message: data[0].message || '售票成功',
-          orderId: data[0].order_id,
-          totalPrice: data[0].total_price
-        };
+      if (!Array.isArray(data) || data.length === 0 || !data[0].success) {
+        const errorMsg = (data && data[0]) ? data[0].message || '未知错误' : '售票操作没有返回结果';
+        console.error('售票失败:', errorMsg);
+        return { success: false, message: errorMsg };
       }
       
-      return { success: false, message: '售票操作没有返回结果' };
+      const orderId = data[0].order_id;
+      const totalPrice = data[0].total_price;
+      
+      console.log('售票成功:', orderId, '总价:', totalPrice);
+      
+      // 如果存储过程未自动处理支付，手动添加支付记录
+      if (paymentMethodId && orderId) {
+        try {
+          // 检查订单状态，如果仍然是pending则添加支付记录
+          const { data: orderData, error: orderError } = await supabase
+            .from('orders')
+            .select('status')
+            .eq('id', orderId)
+            .single();
+          
+          if (!orderError && orderData && orderData.status === OrderStatus.PENDING) {
+            console.log('订单需要手动添加支付记录');
+            
+            // 插入支付记录
+            const { error: paymentError } = await supabase
+              .from('payments')
+              .insert({
+                order_id: orderId,
+                payment_method_id: paymentMethodId,
+                amount: totalPrice,
+                status: 'completed'
+              });
+            
+            if (paymentError) {
+              console.error('创建支付记录失败:', paymentError);
+            } else {
+              // 更新订单状态
+              const { error: updateError } = await supabase
+                .from('orders')
+                .update({
+                  status: OrderStatus.PAID,
+                  paid_at: new Date().toISOString()
+                })
+                .eq('id', orderId);
+              
+              if (updateError) {
+                console.error('更新订单状态失败:', updateError);
+              } else {
+                console.log('订单手动支付成功');
+              }
+            }
+          } else {
+            console.log('订单状态不需要处理或已处理:', orderData?.status);
+          }
+        } catch (paymentError) {
+          console.error('处理支付记录时发生错误:', paymentError);
+          // 不抛出异常，因为订单已经创建成功
+        }
+      }
+      
+      return { 
+        success: true, 
+        message: data[0].message || '售票成功',
+        orderId: orderId,
+        totalPrice: totalPrice
+      };
     } catch (error: any) {
       console.error('售票失败:', error);
       return { 
