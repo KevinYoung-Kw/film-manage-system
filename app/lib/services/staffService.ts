@@ -140,5 +140,83 @@ export const StaffService = {
       console.error('获取工作人员操作历史失败:', error);
       return [];
     }
+  },
+
+  /**
+   * 退票处理
+   * @param staffId 工作人员ID
+   * @param orderId 订单ID
+   * @param reason 退票原因
+   * @returns 退票结果
+   */
+  refundTicket: async (
+    staffId: string,
+    orderId: string,
+    reason: string
+  ): Promise<{ success: boolean; message: string }> => {
+    try {
+      const { data, error } = await supabase.rpc('refund_ticket', {
+        
+        p_order_id: orderId,
+        p_staff_id: staffId,
+        p_reason: reason
+      });
+
+      if (error) {
+        throw new Error('退票失败: ' + error.message);
+      }
+
+      if (Array.isArray(data) && data.length > 0) {
+        return {
+          success: Boolean(data[0].success),
+          message: data[0].message || '退票成功'
+        };
+      }
+
+      return { success: false, message: '退票操作没有返回结果' };
+    } catch (error: any) {
+      console.error('退票失败:', error);
+      return {
+        success: false,
+        message: error.message || '退票失败'
+      };
+    }
+  },
+
+  /**
+   * 检票处理
+   * @param staffId 工作人员ID
+   * @param orderId 订单ID
+   * @returns 检票结果
+   */
+  checkTicket: async (
+    staffId: string,
+    orderId: string
+  ): Promise<{ success: boolean; message: string }> => {
+    try {
+      const { data, error } = await supabase.rpc('check_ticket', {
+        p_order_id: orderId,
+        p_staff_id: staffId
+      });
+
+      if (error) {
+        throw new Error('检票失败: ' + error.message);
+      }
+
+      if (Array.isArray(data) && data.length > 0) {
+        return {
+          success: Boolean(data[0].success),
+          message: data[0].message || '检票成功'
+        };
+      }
+
+      return { success: false, message: '检票操作没有返回结果' };
+    } catch (error: any) {
+      console.error('检票失败:', error);
+      return {
+        success: false,
+        message: error.message || '检票失败'
+      };
+    }
   }
 }; 

@@ -361,6 +361,16 @@ function PaymentContent() {
       // 提前设置状态，避免页面闪烁
       refreshData();
       
+      // 确保订单状态已更新为已支付
+      try {
+        if (targetOrderId) {
+          await OrderService.updateOrderStatus(targetOrderId, OrderStatus.PAID);
+        }
+      } catch (error) {
+        console.error("更新订单状态失败:", error);
+        // 继续执行，因为触发器可能已经更新了状态
+      }
+      
       // 模拟支付成功后的跳转延迟
       setTimeout(() => {
         if (!targetOrderId) {

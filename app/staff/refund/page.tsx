@@ -6,53 +6,90 @@ import { Search, AlertCircle, ArrowLeft, Check, RefreshCcw } from 'lucide-react'
 import MobileLayout from '@/app/components/layout/MobileLayout';
 import { Card } from '@/app/components/ui/Card';
 import Button from '@/app/components/ui/Button';
-import { mockOrders, mockShowtimes, mockMovies, mockTheaters } from '@/app/lib/mockData';
-import { OrderStatus } from '@/app/lib/types';
+import { useAppContext } from '@/app/lib/context/AppContext';
+import { Order, OrderStatus } from '@/app/lib/types';
+
+// 扩展Order类型，添加退款相关字段
+interface RefundOrderInfo extends Order {
+  refundAmount: number;
+  canFullRefund: boolean;
+}
 
 export default function StaffRefundPage() {
+  const { refundTicket } = useAppContext();
   const [orderCode, setOrderCode] = useState('');
-  const [searchedOrder, setSearchedOrder] = useState<any>(null);
+  const [searchedOrder, setSearchedOrder] = useState<RefundOrderInfo | null>(null);
   const [refundReason, setRefundReason] = useState('');
   const [refundStep, setRefundStep] = useState<'search' | 'confirm' | 'success'>('search');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   
   // 搜索订单
-  const handleSearch = () => {
-    // 模拟搜索过程，实际中应当调用API
-    const order = mockOrders.find(o => o.id === orderCode);
+  const handleSearch = async () => {
+    if (!orderCode) return;
     
-    if (order && order.status === OrderStatus.PAID) {
-      // 查找相关信息
-      const showtime = mockShowtimes.find(s => s.id === order.showtimeId);
-      const movie = showtime ? mockMovies.find(m => m.id === showtime.movieId) : null;
-      const theater = showtime ? mockTheaters.find(t => t.id === showtime.theaterId) : null;
+    setLoading(true);
+    setError('');
+    
+    try {
+      // 调用API获取订单信息
+      const response = await fetch(`/api/orders/${orderCode}`);
       
-      // 计算是否可以全额退款（距离开场2小时以上）
-      const now = new Date();
-      const showtimeStart = showtime ? new Date(showtime.startTime) : new Date();
-      const hoursDiff = (showtimeStart.getTime() - now.getTime()) / (1000 * 60 * 60);
-      const canFullRefund = hoursDiff >= 2;
+      if (!response.ok) {
+        throw new Error('订单查询失败');
+      }
       
-      setSearchedOrder({
-        ...order,
-        showtime,
-        movie,
-        theater,
-        seatCount: order.seats.length,
-        canFullRefund,
-        refundAmount: canFullRefund ? order.totalPrice : Math.floor(order.totalPrice * 0.8) // 80%退款
-      });
+      const orderData = await response.json();
       
-      setRefundStep('confirm');
-    } else {
-      alert('订单不存在或无法退款');
+      if (orderData && orderData.status === OrderStatus.PAID) {
+        // 计算是否可以全额退款（距离开场2小时以上）
+        const now = new Date();
+        const showtimeStart = orderData.showtime ? new Date(orderData.showtime) : new Date();
+        const hoursDiff = (showtimeStart.getTime() - now.getTime()) / (1000 * 60 * 60);
+        const canFullRefund = hoursDiff >= 2;
+        
+        setSearchedOrder({
+          ...orderData,
+          refundAmount: canFullRefund ? orderData.totalPrice : Math.floor(orderData.totalPrice * 0.8), // 80%退款
+          canFullRefund
+        });
+        
+        setRefundStep('confirm');
+      } else if (orderData) {
+        setError(`该订单状态为 ${orderData.status}，无法退票`);
+      } else {
+        setError('订单不存在或无法查询');
+      }
+    } catch (err: any) {
+      setError(err.message || '订单查询失败');
+    } finally {
+      setLoading(false);
     }
   };
   
   // 确认退款
-  const handleConfirmRefund = () => {
-    // 这里应该调用API进行退款操作
-    // 模拟退款成功
-    setRefundStep('success');
+  const handleConfirmRefund = async () => {
+    if (!searchedOrder || !refundReason) return;
+    
+    setLoading(true);
+    setError('');
+    
+    try {
+      // 调用退款API
+      const result = await refundTicket(searchedOrder.id, refundReason);
+      
+      if (result.success) {
+        setSuccessMessage(result.message);
+        setRefundStep('success');
+      } else {
+        setError(result.message || '退款失败');
+      }
+    } catch (err: any) {
+      setError(err.message || '退款处理失败');
+    } finally {
+      setLoading(false);
+    }
   };
   
   // 重置
@@ -61,11 +98,19 @@ export default function StaffRefundPage() {
     setSearchedOrder(null);
     setRefundReason('');
     setRefundStep('search');
+    setError('');
+    setSuccessMessage('');
   };
   
   return (
     <MobileLayout title="退票管理" userRole="staff">
       <div className="p-4 pb-20">
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-800 p-3 rounded-lg mb-4">
+            {error}
+          </div>
+        )}
+        
         {refundStep === 'search' && (
           <>
             <Card className="mb-4">
@@ -84,7 +129,8 @@ export default function StaffRefundPage() {
                   variant="primary"
                   fullWidth
                   onClick={handleSearch}
-                  disabled={!orderCode}
+                  disabled={!orderCode || loading}
+                  isLoading={loading}
                 >
                   <Search className="h-4 w-4 mr-2" />
                   查询订单
@@ -134,6 +180,7 @@ export default function StaffRefundPage() {
               variant="outline"
               className="mb-4"
               onClick={() => setRefundStep('search')}
+              disabled={loading}
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               返回
@@ -150,21 +197,21 @@ export default function StaffRefundPage() {
                 </div>
                 <div className="mb-3">
                   <span className="text-sm text-slate-500">电影:</span>
-                  <span className="font-medium ml-2">{searchedOrder.movie.title}</span>
+                  <span className="font-medium ml-2">{searchedOrder.movieTitle}</span>
                 </div>
                 <div className="mb-3">
                   <span className="text-sm text-slate-500">场次:</span>
                   <span className="font-medium ml-2">
-                    {format(searchedOrder.showtime.startTime, 'yyyy-MM-dd HH:mm')}
+                    {searchedOrder.showtime && format(new Date(searchedOrder.showtime), 'yyyy-MM-dd HH:mm')}
                   </span>
                 </div>
                 <div className="mb-3">
                   <span className="text-sm text-slate-500">影厅:</span>
-                  <span className="font-medium ml-2">{searchedOrder.theater.name}</span>
+                  <span className="font-medium ml-2">{searchedOrder.theaterName}</span>
                 </div>
                 <div className="mb-3">
                   <span className="text-sm text-slate-500">座位数:</span>
-                  <span className="font-medium ml-2">{searchedOrder.seatCount}个</span>
+                  <span className="font-medium ml-2">{searchedOrder.seats?.length}个</span>
                 </div>
                 <div className="mb-1">
                   <span className="text-sm text-slate-500">支付金额:</span>
@@ -194,6 +241,7 @@ export default function StaffRefundPage() {
                       variant={refundReason === reason ? 'primary' : 'outline'}
                       size="sm"
                       onClick={() => setRefundReason(reason)}
+                      disabled={loading}
                     >
                       {reason}
                     </Button>
@@ -212,7 +260,8 @@ export default function StaffRefundPage() {
                   variant="primary"
                   fullWidth
                   onClick={handleConfirmRefund}
-                  disabled={!refundReason}
+                  disabled={!refundReason || loading}
+                  isLoading={loading}
                 >
                   <RefreshCcw className="h-4 w-4 mr-2" />
                   确认退款
@@ -231,7 +280,7 @@ export default function StaffRefundPage() {
             </div>
             <h3 className="text-xl font-medium text-green-800 mb-2">退款成功</h3>
             <p className="text-slate-600 mb-6">
-              退款金额 ¥{searchedOrder?.refundAmount} 将在1-3个工作日内退回原支付账户
+              {successMessage || `退款金额 ¥${searchedOrder?.refundAmount} 将在1-3个工作日内退回原支付账户`}
             </p>
             <Button
               variant="primary"

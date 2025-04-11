@@ -1,8 +1,13 @@
--- 整合认证和安全策略
--- 本文件整合了多个SQL文件的功能：
+-- 整合认证和安全策略（合并版本）
+-- 版本: 1.1.0
+-- 更新日期: 2025-04-11
+--
+-- 本文件整合了以下SQL文件的功能：
 -- 1. create_session_function.sql - 创建用户会话函数
 -- 2. rls_policies.sql - 行级安全策略
 -- 3. enable_rpc_functions.sql - 启用RPC函数
+-- 4. setup_auth.sql - 设置Supabase Auth服务
+-- 5. update_rls_policies.sql - 更新行级安全策略适配Supabase Auth
 
 ----------------------------------------------------------
 -- 第一部分: 创建用户会话函数
@@ -415,4 +420,351 @@ BEGIN
   ) THEN
     EXECUTE 'GRANT SELECT ON vw_today_showtimes TO anon, authenticated';
   END IF;
-END $$; 
+END $$;
+
+----------------------------------------------------------
+-- 第四部分: 设置Supabase Auth服务
+-- (整合自setup_auth.sql)
+----------------------------------------------------------
+
+-- 安装pgcrypto扩展(如果尚未安装)
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- 创建一个函数，用于在auth.users表中创建对应的用户记录
+CREATE OR REPLACE FUNCTION create_auth_user_for_existing_db_users()
+RETURNS void AS $$
+DECLARE
+  v_user RECORD;
+  v_auth_user_id UUID;
+  v_default_password TEXT;
+BEGIN
+  -- 遍历所有用户
+  FOR v_user IN 
+    SELECT id, email, role, name FROM users
+  LOOP
+    -- 为每个用户生成一个默认密码
+    v_default_password := 'film-system-token-' || substring(v_user.id::text, 1, 8);
+    
+    -- 检查auth.users表中是否已存在该用户
+    IF NOT EXISTS (
+      SELECT 1 FROM auth.users WHERE email = v_user.email
+    ) THEN
+      -- 在auth.users表中创建用户
+      INSERT INTO auth.users (
+        instance_id,
+        id,
+        aud,
+        role,
+        email,
+        encrypted_password,
+        email_confirmed_at,
+        recovery_sent_at,
+        last_sign_in_at,
+        raw_app_meta_data,
+        raw_user_meta_data,
+        created_at,
+        updated_at,
+        confirmation_token,
+        email_change,
+        email_change_token_new,
+        recovery_token
+      ) VALUES (
+        '00000000-0000-0000-0000-000000000000',
+        uuid_generate_v4(),
+        'authenticated',
+        'authenticated',
+        v_user.email,
+        crypt(v_default_password, gen_salt('bf')),
+        now(),
+        null,
+        now(),
+        json_build_object('provider', 'email', 'providers', array['email']),
+        json_build_object(
+          'role', v_user.role,
+          'user_db_id', v_user.id,
+          'name', v_user.name
+        ),
+        now(),
+        now(),
+        '',
+        '',
+        '',
+        ''
+      )
+      RETURNING id INTO v_auth_user_id;
+      
+      -- 输出日志
+      RAISE NOTICE 'Created auth user for % with ID %', v_user.email, v_auth_user_id;
+    ELSE
+      -- 如果用户已存在，更新其元数据
+      UPDATE auth.users 
+      SET raw_user_meta_data = json_build_object(
+        'role', v_user.role,
+        'user_db_id', v_user.id,
+        'name', v_user.name
+      )
+      WHERE email = v_user.email;
+      
+      RAISE NOTICE 'Updated existing auth user for %', v_user.email;
+    END IF;
+  END LOOP;
+  
+  RAISE NOTICE 'Auth user setup complete!';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 执行函数
+SELECT create_auth_user_for_existing_db_users();
+
+-- 删除函数(清理)
+DROP FUNCTION IF EXISTS create_auth_user_for_existing_db_users();
+
+-- 确保行级安全策略正确配置
+-- 检查和添加用户表的RLS
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+
+-- 确保用户表有适当的策略
+DROP POLICY IF EXISTS "users_select_policy" ON "users";
+CREATE POLICY "users_select_policy" ON "users"
+  FOR SELECT
+  USING (true); -- 允许所有角色查询用户表，包括匿名用户，用于登录验证
+
+DROP POLICY IF EXISTS "users_insert_policy" ON "users";
+CREATE POLICY "users_insert_policy" ON "users"
+  FOR INSERT
+  WITH CHECK (
+    auth.role() IN ('authenticated', 'anon') -- 允许认证和匿名用户注册
+  );
+
+DROP POLICY IF EXISTS "users_update_policy" ON "users";
+CREATE POLICY "users_update_policy" ON "users"
+  FOR UPDATE
+  USING (
+    auth.get_user_role() = 'admin' OR
+    (auth.get_user_role() IN ('staff', 'customer') AND id = auth.get_user_db_id())
+  );
+
+DROP POLICY IF EXISTS "users_delete_policy" ON "users";
+CREATE POLICY "users_delete_policy" ON "users"
+  FOR DELETE
+  USING (
+    auth.get_user_role() = 'admin'
+  );
+
+-- 确保匿名用户可以读取用户表
+GRANT SELECT ON users TO anon, authenticated;
+GRANT INSERT, UPDATE, DELETE ON users TO authenticated;
+
+----------------------------------------------------------
+-- 第五部分: 更新行级安全策略以适配Supabase Auth
+-- (整合自update_rls_policies.sql)
+----------------------------------------------------------
+
+-- 添加一个辅助函数从auth元数据中获取用户角色
+CREATE OR REPLACE FUNCTION auth.get_user_role() RETURNS TEXT AS $$
+DECLARE
+  _role TEXT;
+BEGIN
+  -- 如果没有登录用户，返回anonymous
+  IF auth.uid() IS NULL THEN
+    RETURN 'anonymous';
+  END IF;
+
+  -- 从用户元数据中获取角色信息
+  SELECT COALESCE(raw_user_meta_data->>'role', 'customer')
+  INTO _role
+  FROM auth.users
+  WHERE id = auth.uid();
+
+  -- 如果没有找到角色，默认为customer
+  RETURN COALESCE(_role, 'customer');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 添加一个辅助函数获取用户数据库ID
+CREATE OR REPLACE FUNCTION auth.get_user_db_id() RETURNS UUID AS $$
+DECLARE
+  _user_db_id UUID;
+BEGIN
+  -- 如果没有登录用户，返回NULL
+  IF auth.uid() IS NULL THEN
+    RETURN NULL;
+  END IF;
+
+  -- 从用户元数据中获取数据库ID
+  SELECT (raw_user_meta_data->>'user_db_id')::UUID
+  INTO _user_db_id
+  FROM auth.users
+  WHERE id = auth.uid();
+
+  RETURN _user_db_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 更新订单表的RLS策略
+DROP POLICY IF EXISTS "orders_select_policy" ON "orders";
+CREATE POLICY "orders_select_policy" ON "orders"
+  FOR SELECT
+  USING (
+    auth.get_user_role() IN ('admin', 'staff') OR
+    (auth.get_user_role() = 'customer' AND user_id = auth.get_user_db_id())
+  );
+
+DROP POLICY IF EXISTS "orders_insert_policy" ON "orders";
+CREATE POLICY "orders_insert_policy" ON "orders"
+  FOR INSERT
+  WITH CHECK (
+    auth.get_user_role() IN ('admin', 'staff', 'customer')
+  );
+
+DROP POLICY IF EXISTS "orders_update_policy" ON "orders";
+CREATE POLICY "orders_update_policy" ON "orders"
+  FOR UPDATE
+  USING (
+    auth.get_user_role() IN ('admin', 'staff') OR
+    (auth.get_user_role() = 'customer' AND user_id = auth.get_user_db_id())
+  );
+
+DROP POLICY IF EXISTS "orders_delete_policy" ON "orders";
+CREATE POLICY "orders_delete_policy" ON "orders"
+  FOR DELETE
+  USING (
+    auth.get_user_role() IN ('admin', 'staff')
+  );
+
+-- 更新订单座位表的RLS策略
+DROP POLICY IF EXISTS "order_seats_select_policy" ON "order_seats";
+CREATE POLICY "order_seats_select_policy" ON "order_seats"
+  FOR SELECT
+  USING (
+    auth.get_user_role() IN ('admin', 'staff') OR
+    (auth.get_user_role() = 'customer' AND EXISTS (
+      SELECT 1 FROM orders
+      WHERE orders.id = order_seats.order_id
+      AND orders.user_id = auth.get_user_db_id()
+    ))
+  );
+
+DROP POLICY IF EXISTS "order_seats_insert_policy" ON "order_seats";
+CREATE POLICY "order_seats_insert_policy" ON "order_seats"
+  FOR INSERT
+  WITH CHECK (
+    auth.get_user_role() IN ('admin', 'staff', 'customer')
+  );
+
+DROP POLICY IF EXISTS "order_seats_update_policy" ON "order_seats";
+CREATE POLICY "order_seats_update_policy" ON "order_seats"
+  FOR UPDATE
+  USING (
+    auth.get_user_role() IN ('admin', 'staff')
+  );
+
+DROP POLICY IF EXISTS "order_seats_delete_policy" ON "order_seats";
+CREATE POLICY "order_seats_delete_policy" ON "order_seats"
+  FOR DELETE
+  USING (
+    auth.get_user_role() IN ('admin', 'staff')
+  );
+
+-- 更新seats表的RLS策略
+DROP POLICY IF EXISTS "seats_update_policy" ON "seats";
+CREATE POLICY "seats_update_policy" ON "seats"
+  FOR UPDATE
+  USING (
+    auth.get_user_role() IN ('admin', 'staff', 'customer')
+  );
+
+-- 更新用户表策略 (使用auth辅助函数)
+DROP POLICY IF EXISTS "users_select_policy" ON "users";
+CREATE POLICY "users_select_policy" ON "users"
+  FOR SELECT
+  USING (TRUE);  -- 允许所有角色查询用户表
+
+DROP POLICY IF EXISTS "users_insert_policy" ON "users";
+CREATE POLICY "users_insert_policy" ON "users"
+  FOR INSERT
+  WITH CHECK (
+    auth.role() IN ('authenticated', 'anon') -- 允许认证和匿名用户注册
+  );
+
+DROP POLICY IF EXISTS "users_update_policy" ON "users";
+CREATE POLICY "users_update_policy" ON "users"
+  FOR UPDATE
+  USING (
+    auth.get_user_role() = 'admin' OR
+    (auth.get_user_role() IN ('staff', 'customer') AND id = auth.get_user_db_id())
+  );
+
+DROP POLICY IF EXISTS "users_delete_policy" ON "users";
+CREATE POLICY "users_delete_policy" ON "users"
+  FOR DELETE
+  USING (
+    auth.get_user_role() = 'admin'
+  );
+
+-- 确保认证辅助函数可以被调用
+GRANT EXECUTE ON FUNCTION auth.get_user_role() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION auth.get_user_db_id() TO anon, authenticated, service_role;
+
+----------------------------------------------------------
+-- 第六部分: 创建网站信息表
+----------------------------------------------------------
+
+-- 网站信息表
+DROP TABLE IF EXISTS site_info CASCADE;
+CREATE TABLE IF NOT EXISTS site_info (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(100) NOT NULL DEFAULT '电影票务系统',
+    address VARCHAR(200) NOT NULL DEFAULT '中国某省某市某区某街道123号',
+    phone VARCHAR(20) NOT NULL DEFAULT '400-123-4567',
+    email VARCHAR(100) NOT NULL DEFAULT 'support@example.com',
+    copyright VARCHAR(100) NOT NULL DEFAULT '© 2025 电影票务系统',
+    workingHours VARCHAR(100) NOT NULL DEFAULT '09:00 - 22:00',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 插入默认数据
+INSERT INTO site_info (name, address, phone, email, copyright, workingHours) VALUES
+(
+    '电影票务系统',
+    '中国某省某市某区某街道123号',
+    '400-123-4567',
+    'support@example.com',
+    '© 2025 电影票务系统',
+    '09:00 - 22:00'
+) ON CONFLICT DO NOTHING;
+
+-- 设置适当的RLS策略
+ALTER TABLE site_info ENABLE ROW LEVEL SECURITY;
+
+-- 创建site_info的RLS策略
+DROP POLICY IF EXISTS "site_info_select_policy" ON "site_info";
+CREATE POLICY "site_info_select_policy" ON "site_info"
+  FOR SELECT
+  USING (true); -- 所有用户都可以查看网站信息
+
+DROP POLICY IF EXISTS "site_info_insert_policy" ON "site_info";
+CREATE POLICY "site_info_insert_policy" ON "site_info"
+  FOR INSERT
+  WITH CHECK (
+    auth.get_user_role() = 'admin'
+  );
+
+DROP POLICY IF EXISTS "site_info_update_policy" ON "site_info";
+CREATE POLICY "site_info_update_policy" ON "site_info"
+  FOR UPDATE
+  USING (
+    auth.get_user_role() = 'admin'
+  );
+
+DROP POLICY IF EXISTS "site_info_delete_policy" ON "site_info";
+CREATE POLICY "site_info_delete_policy" ON "site_info"
+  FOR DELETE
+  USING (
+    auth.get_user_role() = 'admin'
+  );
+
+-- 设置权限
+GRANT SELECT ON site_info TO anon, authenticated, service_role;
+GRANT INSERT, UPDATE, DELETE ON site_info TO authenticated, service_role; 

@@ -1,5 +1,34 @@
+/*
+ * 电影票务系统数据库重置脚本
+ * 版本: 1.4.2
+ * 最后更新: 2025-04-24
+ * 
+ * 更新日志:
+ * - 2025-04-24: 修复vw_user_orders视图，确保新创建的订单也能被正确查询
+ * - 2025-04-24: 修复订单创建函数中的事务控制问题
+ * - 2025-04-24: 修复订单创建函数，添加事务处理确保数据一致性
+ * - 2025-04-12: 集成drop_duplicate_function.sql，修复重复函数和价格字段问题
+ * - 2025-04-11: 集成create_order函数，支持Supabase Auth服务
+ * - 2025-04-11: 修复支付触发器，同时支持'success'和'completed'状态
+ * - 2025-03-25: 初始版本
+ */
+
 -- 包含完整的数据库架构和安全性修复
 -- 适用于Supabase (PostgreSQL)
+
+-- ===============================
+-- 迁移版本管理表
+-- ===============================
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    version VARCHAR(50) PRIMARY KEY,
+    applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    description TEXT
+);
+
+-- 当前模式版本
+INSERT INTO schema_migrations (version, description) 
+VALUES ('1.4.1', '修复订单创建函数中的事务控制问题')
+ON CONFLICT (version) DO NOTHING;
 
 -- ===============================
 -- 第零部分: 清除现有数据库对象
@@ -37,6 +66,19 @@ DROP FUNCTION IF EXISTS public.is_admin_safe() CASCADE;
 DROP FUNCTION IF EXISTS public.is_staff_safe() CASCADE;
 DROP FUNCTION IF EXISTS public.is_admin() CASCADE;
 DROP FUNCTION IF EXISTS public.is_staff() CASCADE;
+
+-- 删除重复的create_order函数，不管参数类型如何
+DROP FUNCTION IF EXISTS public.create_order(uuid, uuid, uuid[], character varying);
+DROP FUNCTION IF EXISTS public.create_order(uuid, uuid, uuid[], text);
+DROP FUNCTION IF EXISTS public.create_order(uuid, uuid, uuid[], character varying, uuid);
+DROP FUNCTION IF EXISTS public.create_order(uuid, uuid, uuid[], text, uuid);
+DROP FUNCTION IF EXISTS public.create_order(text, text, bigint, timestamp without time zone, text, text, bigint);
+DROP FUNCTION IF EXISTS public.create_order(text, character varying, bigint, timestamp without time zone, text, text, bigint);
+DROP FUNCTION IF EXISTS public.create_order(text, varchar, bigint, timestamp without time zone, text, text, bigint);
+DROP FUNCTION IF EXISTS public.create_order(text, text, bigint, timestamp without time zone, text, text);
+DROP FUNCTION IF EXISTS public.create_order(text, character varying, bigint, timestamp without time zone, text, text);
+DROP FUNCTION IF EXISTS public.create_order(character varying, text, bigint, timestamp without time zone, text, text, bigint);
+DROP FUNCTION IF EXISTS public.create_order(character varying, character varying, bigint, timestamp without time zone, text, text, bigint);
 
 -- 删除业务函数
 DROP FUNCTION IF EXISTS generate_seats_for_showtime(UUID) CASCADE;
@@ -224,6 +266,221 @@ BEGIN
     END IF;
 END;
 $$ LANGUAGE plpgsql;
+
+-- 2. 订单创建函数 (支持Supabase Auth)
+CREATE OR REPLACE FUNCTION create_order(
+    p_user_id UUID,
+    p_showtime_id UUID,
+    p_seat_ids UUID[],
+    p_ticket_type TEXT,
+    p_payment_method_id UUID DEFAULT NULL
+) RETURNS TABLE (
+    success BOOLEAN,
+    message TEXT,
+    order_id TEXT
+) AS $$
+DECLARE
+    v_order_id TEXT;
+    v_showtime RECORD;
+    v_total_price DECIMAL(10,2) := 0;
+    v_base_price DECIMAL(10,2);
+    v_seat_id UUID;
+    v_seat RECORD;
+    v_count INTEGER := 0;
+    v_now TIMESTAMP := CURRENT_TIMESTAMP;
+    v_order_date TEXT;
+    v_order_num TEXT;
+    v_is_admin BOOLEAN;
+    v_is_staff BOOLEAN;
+BEGIN
+    -- 检查权限
+    -- 获取当前用户角色并检查是否为管理员或工作人员
+    SELECT auth.get_user_role() = 'admin' INTO v_is_admin;
+    SELECT auth.get_user_role() = 'staff' INTO v_is_staff;
+    
+    -- 检查权限：只有管理员/工作人员可以为他人下单，普通用户只能为自己下单
+    IF NOT (v_is_admin OR v_is_staff) THEN
+        -- 检查user_id是否等于当前认证用户的数据库ID
+        IF p_user_id != auth.get_user_db_id() THEN
+            RETURN QUERY SELECT FALSE, '权限不足：只能为自己创建订单', NULL::TEXT;
+            RETURN;
+        END IF;
+    END IF;
+    
+    -- 检查输入参数
+    IF p_user_id IS NULL THEN
+        RETURN QUERY SELECT FALSE, '用户ID不能为空', NULL::TEXT;
+        RETURN;
+    END IF;
+    
+    IF p_showtime_id IS NULL THEN
+        RETURN QUERY SELECT FALSE, '场次ID不能为空', NULL::TEXT;
+        RETURN;
+    END IF;
+    
+    IF p_seat_ids IS NULL OR array_length(p_seat_ids, 1) = 0 THEN
+        RETURN QUERY SELECT FALSE, '座位不能为空', NULL::TEXT;
+        RETURN;
+    END IF;
+    
+    IF p_ticket_type IS NULL THEN
+        RETURN QUERY SELECT FALSE, '票型不能为空', NULL::TEXT;
+        RETURN;
+    END IF;
+    
+    -- 查询场次信息
+    SELECT * INTO v_showtime
+    FROM showtimes
+    WHERE id = p_showtime_id;
+    
+    IF NOT FOUND THEN
+        RETURN QUERY SELECT FALSE, '场次不存在', NULL::TEXT;
+        RETURN;
+    END IF;
+    
+    -- 根据票型获取基础票价
+    CASE p_ticket_type 
+        WHEN 'normal' THEN v_base_price := v_showtime.price_normal;
+        WHEN 'student' THEN v_base_price := v_showtime.price_student;
+        WHEN 'senior' THEN v_base_price := v_showtime.price_senior;
+        WHEN 'child' THEN v_base_price := v_showtime.price_child;
+        ELSE v_base_price := v_showtime.price_normal; -- 默认使用普通票价
+    END CASE;
+    
+    -- 检查电影是否已上映过期
+    IF v_showtime.start_time < CURRENT_TIMESTAMP THEN
+        -- 如果已经超过开场时间15分钟，则不允许购票
+        IF v_showtime.start_time < (CURRENT_TIMESTAMP - INTERVAL '15 minutes') THEN
+            RETURN QUERY SELECT FALSE, '电影已开场超过15分钟，无法购票', NULL::TEXT;
+            RETURN;
+        END IF;
+    END IF;
+    
+    -- 计算订单总价
+    -- 遍历座位，计算每个座位的价格（根据座位类型可能会有不同价格）
+    FOREACH v_seat_id IN ARRAY p_seat_ids
+    LOOP
+        -- 查询座位信息
+        SELECT * INTO v_seat
+        FROM seats
+        WHERE id = v_seat_id AND showtime_id = p_showtime_id;
+        
+        IF NOT FOUND THEN
+            RETURN QUERY SELECT FALSE, '座位ID无效: ' || v_seat_id::TEXT, NULL::TEXT;
+            RETURN;
+        END IF;
+        
+        -- 检查座位是否可用
+        IF NOT v_seat.is_available THEN
+            RETURN QUERY SELECT FALSE, '座位已被占用: 第' || v_seat.row_num || '排' || v_seat.column_num || '座', NULL::TEXT;
+            RETURN;
+        END IF;
+        
+        -- 根据座位类型计算价格，使用正确的乘数
+        CASE v_seat.seat_type
+            WHEN 'normal' THEN
+                v_total_price := v_total_price + v_base_price;
+            WHEN 'vip' THEN
+                v_total_price := v_total_price + v_base_price * 1.2;
+            WHEN 'couple' THEN
+                v_total_price := v_total_price + v_base_price * 1.5;
+            WHEN 'disabled' THEN
+                v_total_price := v_total_price + v_base_price * 0.6;
+            ELSE
+                v_total_price := v_total_price + v_base_price;
+        END CASE;
+        
+        v_count := v_count + 1;
+    END LOOP;
+    
+    -- 如果座位数检查与输入不符
+    IF v_count <> array_length(p_seat_ids, 1) THEN
+        RETURN QUERY SELECT FALSE, '座位数不匹配', NULL::TEXT;
+        RETURN;
+    END IF;
+    
+    -- 生成订单号 (格式: TK + 年月日 + 4位序号, 例如 TK2305220001)
+    v_order_date := to_char(v_now, 'YYMMDD');
+    
+    -- 获取当天的最大订单号
+    SELECT COALESCE(MAX(SUBSTRING(id FROM 9 FOR 4)::INTEGER), 0) + 1 INTO v_order_num
+    FROM orders
+    WHERE SUBSTRING(id FROM 3 FOR 6) = v_order_date;
+    
+    -- 构建完整订单号
+    v_order_id := 'TK' || v_order_date || LPAD(v_order_num::TEXT, 4, '0');
+    
+    -- 创建订单记录
+    INSERT INTO orders (
+        id,
+        user_id,
+        showtime_id,
+        ticket_type,
+        total_price,
+        status,
+        ticket_status,
+        created_at
+    ) VALUES (
+        v_order_id,
+        p_user_id,
+        p_showtime_id,
+        p_ticket_type::ticket_type,
+        v_total_price,
+        'pending',
+        'unused',
+        v_now
+    );
+    
+    -- 占用选定的座位
+    FOREACH v_seat_id IN ARRAY p_seat_ids
+    LOOP
+        -- 先更新座位状态为不可用
+        UPDATE seats
+        SET is_available = FALSE, updated_at = v_now
+        WHERE id = v_seat_id;
+        
+        -- 创建订单座位关联
+        INSERT INTO order_seats (order_id, seat_id, created_at)
+        VALUES (v_order_id, v_seat_id, v_now);
+    END LOOP;
+    
+    -- 如果提供了支付方式ID，立即创建支付记录
+    IF p_payment_method_id IS NOT NULL THEN
+        -- 插入支付记录
+        INSERT INTO payments (
+            order_id,
+            payment_method_id,
+            amount,
+            status,
+            created_at
+        ) VALUES (
+            v_order_id,
+            p_payment_method_id,
+            v_total_price,
+            'success',
+            v_now
+        );
+        
+        -- 更新订单状态为已支付
+        UPDATE orders
+        SET status = 'paid', paid_at = v_now
+        WHERE id = v_order_id;
+    END IF;
+    
+    -- 返回成功消息
+    RETURN QUERY SELECT TRUE, '订单创建成功', v_order_id;
+    RETURN;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        -- 发生错误时返回错误消息
+        RETURN QUERY SELECT FALSE, '订单创建失败: ' || SQLERRM, NULL::TEXT;
+        RETURN;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 授予执行权限给所有角色
+GRANT EXECUTE ON FUNCTION create_order(UUID, UUID, UUID[], TEXT, UUID) TO anon, authenticated, service_role;
 
 -- ===============================
 -- 第三部分: 数据库架构初始化
@@ -505,6 +762,20 @@ CREATE TABLE IF NOT EXISTS payments (
 CREATE INDEX IF NOT EXISTS idx_payments_order_id ON payments(order_id);
 CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
 
+-- 网站信息表
+DROP TABLE IF EXISTS site_info CASCADE;
+CREATE TABLE IF NOT EXISTS site_info (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(100) NOT NULL DEFAULT '电影票务系统',
+    address VARCHAR(200) NOT NULL DEFAULT '中国某省某市某区某街道123号',
+    phone VARCHAR(20) NOT NULL DEFAULT '400-123-4567',
+    email VARCHAR(100) NOT NULL DEFAULT 'support@example.com',
+    copyright VARCHAR(100) NOT NULL DEFAULT '© 2025 电影票务系统',
+    workingHours VARCHAR(100) NOT NULL DEFAULT '09:00 - 22:00',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 票种价格表(新增表)
 DROP TABLE IF EXISTS ticket_types CASCADE;
 CREATE TABLE IF NOT EXISTS ticket_types (
@@ -778,6 +1049,10 @@ CREATE TRIGGER update_payments_timestamp
 BEFORE UPDATE ON payments
 FOR EACH ROW EXECUTE PROCEDURE update_timestamp();
 
+CREATE TRIGGER update_site_info_timestamp
+BEFORE UPDATE ON site_info
+FOR EACH ROW EXECUTE PROCEDURE update_timestamp();
+
 -- 2. 添加场次时自动生成座位触发器
 CREATE OR REPLACE FUNCTION after_insert_showtime()
 RETURNS TRIGGER AS $$
@@ -949,8 +1224,8 @@ FOR EACH ROW EXECUTE PROCEDURE after_check_ticket_operation();
 CREATE OR REPLACE FUNCTION after_payment_success()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- 只处理支付成功的新记录
-    IF NEW.status = 'success' THEN
+    -- 处理支付成功的新记录 (同时支持'success'和'completed'状态)
+    IF NEW.status = 'success' OR NEW.status = 'completed' THEN
         -- 更新订单状态为已支付
         UPDATE orders
         SET status = 'paid', paid_at = NEW.created_at
@@ -963,6 +1238,11 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER update_order_after_payment
 AFTER INSERT ON payments
+FOR EACH ROW EXECUTE PROCEDURE after_payment_success();
+
+-- 添加更新支付记录时的触发器
+CREATE TRIGGER update_order_after_payment_update
+AFTER UPDATE OF status ON payments
 FOR EACH ROW EXECUTE PROCEDURE after_payment_success();
 
 -- 8. 退款成功后更新订单状态的触发器
@@ -1187,7 +1467,7 @@ SELECT
     s.start_time,
     s.end_time,
     t.name AS theater_name,
-    array_agg(CONCAT('R', se.row_num, 'C', se.column_num)) AS seat_locations
+    COALESCE(array_agg(CONCAT('R', se.row_num, 'C', se.column_num)) FILTER (WHERE se.id IS NOT NULL), ARRAY[]::text[]) AS seat_locations
 FROM 
     orders o
 JOIN 
@@ -1196,9 +1476,9 @@ JOIN
     movies m ON s.movie_id = m.id
 JOIN 
     theaters t ON s.theater_id = t.id
-JOIN 
+LEFT JOIN 
     order_seats os ON o.id = os.order_id
-JOIN 
+LEFT JOIN 
     seats se ON os.seat_id = se.id
 GROUP BY 
     o.id, m.title, m.poster, s.start_time, s.end_time, t.name
@@ -1817,3 +2097,244 @@ INSERT INTO banners (image_url, webp_image_url, title, description, link, is_act
     TRUE,
     3
 ) ON CONFLICT DO NOTHING;
+
+-- 插入站点信息数据
+INSERT INTO site_info (name, address, phone, email, copyright, workingHours) VALUES
+(
+    '电影票务系统',
+    '中国某省某市某区某街道123号',
+    '400-123-4567',
+    'support@example.com',
+    '© 2025 电影票务系统',
+    '09:00 - 22:00'
+) ON CONFLICT DO NOTHING;
+
+-- 站点信息表RLS
+ALTER TABLE site_info ENABLE ROW LEVEL SECURITY;
+
+-- 站点信息表策略 - 所有人可查看，只有管理员可以修改
+CREATE POLICY site_info_select_policy ON site_info FOR SELECT USING (true);
+CREATE POLICY site_info_update_policy ON site_info FOR UPDATE USING (is_admin_safe());
+CREATE POLICY site_info_insert_policy ON site_info FOR INSERT WITH CHECK (is_admin_safe());
+CREATE POLICY site_info_delete_policy ON site_info FOR DELETE USING (is_admin_safe());
+
+-- 删除所有可能的refund_ticket函数版本，以防止函数重载冲突
+DROP FUNCTION IF EXISTS public.refund_ticket(p_order_id character varying, p_staff_id character varying, p_reason character varying);
+DROP FUNCTION IF EXISTS public.refund_ticket(p_order_id character varying, p_staff_id uuid, p_reason character varying);
+DROP FUNCTION IF EXISTS public.refund_ticket(p_order_id text, p_staff_id text, p_reason text);
+DROP FUNCTION IF EXISTS public.refund_ticket(p_order_id text, p_staff_id uuid, p_reason text);
+DROP FUNCTION IF EXISTS public.refund_ticket(p_order_id uuid, p_staff_id uuid, p_reason text);
+DROP FUNCTION IF EXISTS public.refund_ticket(p_order_id uuid, p_staff_id character varying, p_reason character varying);
+
+-- 6. 退票存储过程
+CREATE OR REPLACE FUNCTION refund_ticket(
+  p_order_id VARCHAR,
+  p_staff_id VARCHAR,
+  p_reason VARCHAR
+) 
+RETURNS TABLE(success BOOLEAN, message TEXT) 
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_order RECORD;
+  v_showtime RECORD;
+  v_now TIMESTAMP WITH TIME ZONE := CURRENT_TIMESTAMP;
+  v_fee_percentage DECIMAL(5,2) := 0;
+  v_refund_amount DECIMAL(10,2);
+  v_payment RECORD;
+BEGIN
+  -- 检查订单是否存在
+  SELECT * INTO v_order FROM orders 
+  WHERE id = p_order_id;
+  
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT false AS success, '订单不存在' AS message;
+    RETURN;
+  END IF;
+  
+  -- 检查订单状态是否为已支付
+  IF v_order.status != 'paid' THEN
+    RETURN QUERY SELECT false AS success, '只有已支付的订单可以退款' AS message;
+    RETURN;
+  END IF;
+  
+  -- 检查是否已经退款
+  IF v_order.refunded_at IS NOT NULL THEN
+    RETURN QUERY SELECT false AS success, '订单已经退款' AS message;
+    RETURN;
+  END IF;
+  
+  -- 检查场次信息
+  SELECT * INTO v_showtime FROM showtimes
+  WHERE id = v_order.showtime_id;
+  
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT false AS success, '场次信息不存在' AS message;
+    RETURN;
+  END IF;
+  
+  -- 检查是否已经开场
+  IF v_showtime.start_time <= v_now THEN
+    RETURN QUERY SELECT false AS success, '电影已开场，不能退款' AS message;
+    RETURN;
+  END IF;
+  
+  -- 计算退款手续费
+  IF v_showtime.start_time - v_now <= INTERVAL '30 minutes' THEN
+    -- 开场前30分钟内不支持退票
+    RETURN QUERY SELECT false AS success, '开场前30分钟内不支持退票' AS message;
+    RETURN;
+  ELSIF v_showtime.start_time - v_now <= INTERVAL '2 hours' THEN
+    -- 开场前30分钟至2小时收取30%手续费
+    v_fee_percentage := 0.3;
+  ELSE
+    -- 开场前2小时以上收取10%手续费
+    v_fee_percentage := 0.1;
+  END IF;
+  
+  -- 计算退款金额
+  v_refund_amount := v_order.total_price * (1 - v_fee_percentage);
+  
+  -- 获取支付记录
+  SELECT * INTO v_payment FROM payments
+  WHERE order_id = p_order_id AND status = 'completed'
+  ORDER BY created_at DESC
+  LIMIT 1;
+  
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT false AS success, '找不到支付记录' AS message;
+    RETURN;
+  END IF;
+  
+  -- 开始事务处理
+  BEGIN
+    -- 1. 更新订单状态为已退款
+    UPDATE orders
+    SET status = 'refunded',
+        refunded_at = v_now
+    WHERE id = p_order_id;
+    
+    -- 2. 添加退款记录
+    INSERT INTO payments (
+      order_id,
+      payment_method_id,
+      amount,
+      status,
+      refund_reason,
+      refunded_at,
+      reference_payment_id
+    ) VALUES (
+      p_order_id,
+      v_payment.payment_method_id,
+      v_refund_amount * -1,  -- 负数表示退款
+      'refunded',
+      p_reason,
+      v_now,
+      v_payment.id
+    );
+    
+    -- 3. 记录工作人员操作
+    INSERT INTO staff_operations (
+      staff_id,
+      operation_type,
+      order_id,
+      details
+    ) VALUES (
+      p_staff_id,
+      'refund',
+      p_order_id,
+      jsonb_build_object(
+        'reason', p_reason,
+        'refund_amount', v_refund_amount,
+        'fee_percentage', v_fee_percentage
+      )
+    );
+    
+    -- 4. 恢复座位状态
+    UPDATE seats
+    SET is_available = true
+    WHERE id IN (
+      SELECT seat_id FROM order_seats WHERE order_id = p_order_id
+    );
+    
+    -- 返回成功
+    RETURN QUERY SELECT true AS success, '退款成功，退款金额: ' || v_refund_amount::TEXT AS message;
+  EXCEPTION WHEN OTHERS THEN
+    -- 如果发生错误，回滚事务
+    RAISE;
+    RETURN QUERY SELECT false AS success, '退款失败: ' || SQLERRM AS message;
+  END;
+END;
+$$;
+
+-- 删除所有可能的check_ticket函数版本，以防止函数重载冲突
+DROP FUNCTION IF EXISTS public.check_ticket(p_order_id character varying, p_staff_id character varying);
+DROP FUNCTION IF EXISTS public.check_ticket(p_order_id character varying, p_staff_id uuid);
+DROP FUNCTION IF EXISTS public.check_ticket(p_order_id text, p_staff_id text);
+DROP FUNCTION IF EXISTS public.check_ticket(p_order_id text, p_staff_id uuid);
+DROP FUNCTION IF EXISTS public.check_ticket(p_order_id uuid, p_staff_id uuid);
+DROP FUNCTION IF EXISTS public.check_ticket(p_order_id uuid, p_staff_id character varying);
+
+-- 7. 检票存储过程
+CREATE OR REPLACE FUNCTION check_ticket(
+  p_order_id VARCHAR,
+  p_staff_id VARCHAR
+) 
+RETURNS TABLE(success BOOLEAN, message TEXT) 
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_order RECORD;
+  v_now TIMESTAMP WITH TIME ZONE := CURRENT_TIMESTAMP;
+BEGIN
+  -- 检查订单是否存在
+  SELECT * INTO v_order FROM orders 
+  WHERE id = p_order_id;
+  
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT false AS success, '订单不存在' AS message;
+    RETURN;
+  END IF;
+  
+  -- 检查订单状态是否为已支付
+  IF v_order.status != 'paid' THEN
+    RETURN QUERY SELECT false AS success, '只有已支付的订单可以检票' AS message;
+    RETURN;
+  END IF;
+  
+  -- 检查是否已经检票
+  IF v_order.checked_at IS NOT NULL THEN
+    RETURN QUERY SELECT false AS success, '订单已经检票' AS message;
+    RETURN;
+  END IF;
+  
+  -- 更新订单状态为已检票
+  UPDATE orders
+  SET ticket_status = 'used',
+      checked_at = v_now
+  WHERE id = p_order_id;
+  
+  -- 记录工作人员操作
+  INSERT INTO staff_operations (
+    staff_id,
+    operation_type,
+    order_id,
+    details
+  ) VALUES (
+    p_staff_id,
+    'check',
+    p_order_id,
+    jsonb_build_object(
+      'checked_at', v_now
+    )
+  );
+  
+  -- 返回成功
+  RETURN QUERY SELECT true AS success, '检票成功' AS message;
+EXCEPTION WHEN OTHERS THEN
+  -- 如果发生错误
+  RETURN QUERY SELECT false AS success, '检票失败: ' || SQLERRM AS message;
+END;
+$$;

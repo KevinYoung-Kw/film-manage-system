@@ -160,7 +160,41 @@
 执行脚本的建议顺序:
 1. DATABASE_RESET.sql（如果需要重置）
 2. auth_and_security.sql
-3. setup_auth.sql
-4. update_create_order.sql
-5. update_rls_policies.sql
-6. drop_duplicate_function.sql
+3. drop_duplicate_function.sql
+
+## 数据库迁移管理（新）
+
+从2025年4月起，我们开始使用新的数据库迁移管理方法，旨在减少分散的SQL文件，提高维护性。
+
+### 新的迁移管理方式
+
+1. **使用版本化的DATABASE_RESET.sql**
+   - 所有数据库定义集中到一个文件
+   - 文件顶部添加版本号和更新日志
+   - 数据库包含schema_migrations表追踪版本
+
+2. **迁移目录结构**
+   - `migrations/DATABASE_RESET.sql` - 主文件，包含完整数据库定义
+   - `migrations/auth_and_security.sql` - 认证和安全策略
+   - `migrations/drop_duplicate_function.sql` - 特殊修复
+   - `migrations/archive/` - 归档的历史迁移文件
+   - `migrations/README.md` - 迁移管理说明
+
+3. **迁移流程**
+   - 小更改：创建独立迁移文件 → 测试 → 整合到主文件 → 归档
+   - 大更改：直接在主文件中更新，并更新版本号
+
+### 最新更新
+
+**v1.2.0 (2025-04-11)**
+- 整合了分散的迁移文件到主要文件中
+- setup_auth.sql和update_rls_policies.sql整合到auth_and_security.sql
+- update_create_order.sql整合到DATABASE_RESET.sql
+- 更新apply_all.sh脚本，简化迁移过程
+
+**v1.1.0 (2025-04-11)**
+- 修复支付触发器，使其同时支持'success'和'completed'状态
+- 添加支付记录更新触发器，确保状态更新时也能触发订单状态更新
+- 改进数据库迁移管理流程
+
+详细信息请查看 `migrations/README.md`。

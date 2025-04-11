@@ -1,6 +1,8 @@
 import supabase from './supabaseClient';
 import { Order, OrderStatus, TicketStatus, TicketType } from '../types';
 import { processImageUrl } from './dataService';
+import { createClient } from '@supabase/supabase-js';
+import { PaymentStatus } from './paymentService';
 
 /**
  * 订单服务 - 处理订单管理相关功能
@@ -263,7 +265,7 @@ export const OrderService = {
           order_id: orderId,
           payment_method_id: paymentMethodId,
           amount: order.total_price,
-          status: 'success'
+          status: PaymentStatus.COMPLETED
         });
       
       if (paymentError) {
