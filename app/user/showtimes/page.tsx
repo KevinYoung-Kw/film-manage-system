@@ -15,6 +15,7 @@ import { useAppContext } from '@/app/lib/context/AppContext';
 
 // 定义默认图片路径常量
 const DEFAULT_MOVIE_POSTER = '/images/default-poster.jpg';
+const DEFAULT_WEBP_MOVIE_POSTER = '/images/default-poster.webp';
 
 export default function ShowtimesPage() {
   const [date, setDate] = useState<Date>(new Date());
@@ -207,7 +208,7 @@ export default function ShowtimesPage() {
                     <div className="p-4 flex space-x-3 border-b border-slate-100">
                       <div className="relative h-24 w-16 rounded overflow-hidden">
                         <Image
-                          src={movieShowtimes[0].movie.poster || DEFAULT_MOVIE_POSTER}
+                          src={movieShowtimes[0].movie.webpPoster || movieShowtimes[0].movie.poster || DEFAULT_WEBP_MOVIE_POSTER || DEFAULT_MOVIE_POSTER}
                           alt={movieShowtimes[0].movie.title}
                           fill
                           className="object-cover"

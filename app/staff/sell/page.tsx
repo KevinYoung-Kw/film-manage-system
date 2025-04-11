@@ -121,7 +121,7 @@ export default function StaffSellPage() {
                   <div className="p-3 flex space-x-3">
                     <div className="relative h-32 w-24 flex-shrink-0 rounded overflow-hidden">
                       <Image
-                        src={movie.poster || defaultImages.moviePoster}
+                        src={movie.webpPoster || movie.poster || defaultImages.webpMoviePoster || defaultImages.moviePoster}
                         alt={movie.title}
                         fill
                         className="object-cover"

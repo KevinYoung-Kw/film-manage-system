@@ -21,7 +21,7 @@ export const AuthService = {
         .from('users')
         .select('*')
         .eq('email', email)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('登录查询失败:', error);
@@ -87,7 +87,7 @@ export const AuthService = {
         .from('users')
         .select('id')
         .eq('email', email)
-        .single();
+        .maybeSingle();
 
       if (existingUser) {
         throw new Error('该邮箱已被注册');
@@ -109,7 +109,7 @@ export const AuthService = {
           }
         ])
         .select()
-        .single();
+        .maybeSingle();
 
       if (error || !user) {
         console.error('注册失败:', error);
@@ -196,7 +196,7 @@ export const AuthService = {
         .from('users')
         .select('*')
         .eq('id', session.user_id)
-        .single();
+        .maybeSingle();
 
       if (error || !user) {
         console.error('获取当前用户失败:', error);

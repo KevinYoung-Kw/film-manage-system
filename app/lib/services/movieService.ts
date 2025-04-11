@@ -140,11 +140,17 @@ export const MovieService = {
    */
   getMovieById: async (movieId: string): Promise<Movie | null> => {
     try {
+      // 确保ID是有效的UUID格式
+      if (!movieId || movieId === '00000000-0000-0000-0000-000000000000') {
+        console.error('无效的电影ID');
+        return null;
+      }
+      
       const { data, error } = await supabase
         .from('vw_movie_details')
         .select('*')
         .eq('id', movieId)
-        .single();
+        .maybeSingle();
 
       if (error || !data) {
         console.error('获取电影详情失败:', error);
@@ -204,7 +210,7 @@ export const MovieService = {
           status: movie.status || 'coming_soon'
         }])
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) {
         // 检查是否是权限错误
@@ -275,12 +281,34 @@ export const MovieService = {
       if (movieData.status !== undefined) updateData.status = movieData.status;
 
       console.log('更新电影数据:', { movieId, updateData });
+      
+      // 确保ID是有效的UUID格式
+      if (!movieId || movieId === '00000000-0000-0000-0000-000000000000') {
+        throw new DatabaseError('无效的电影ID');
+      }
+      
+      // 先检查电影是否存在
+      const { data: movieExists, error: checkError } = await adminClient
+        .from('movies')
+        .select('id')
+        .eq('id', movieId)
+        .maybeSingle();
+        
+      if (checkError) {
+        throw new DatabaseError(`检查电影是否存在失败: ${checkError.message}`, checkError);
+      }
+      
+      if (!movieExists) {
+        throw new DatabaseError(`找不到ID为 ${movieId} 的电影`);
+      }
+      
+      // 更新电影信息
       const { data, error } = await adminClient
         .from('movies')
         .update(updateData)
         .eq('id', movieId)
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) {
         // 检查是否是权限错误
@@ -373,6 +401,26 @@ export const MovieService = {
     try {
       // 获取带有认证的管理员客户端
       const adminClient = await getAdminClient();
+      
+      // 确保ID是有效的UUID格式
+      if (!movieId || movieId === '00000000-0000-0000-0000-000000000000') {
+        throw new DatabaseError('无效的电影ID');
+      }
+      
+      // 先检查电影是否存在
+      const { data: movieExists, error: checkError } = await adminClient
+        .from('movies')
+        .select('id')
+        .eq('id', movieId)
+        .maybeSingle();
+        
+      if (checkError) {
+        throw new DatabaseError(`检查电影是否存在失败: ${checkError.message}`, checkError);
+      }
+      
+      if (!movieExists) {
+        throw new DatabaseError(`找不到ID为 ${movieId} 的电影`);
+      }
       
       console.log('删除电影:', { movieId });
       const { error } = await adminClient

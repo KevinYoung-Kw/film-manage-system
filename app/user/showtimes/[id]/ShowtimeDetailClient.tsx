@@ -184,7 +184,7 @@ export default function ShowtimeDetailClient({ showtime, movie, theater }: Showt
           <div className="flex space-x-4 p-4 border-b">
             <div className="relative w-20 h-28 flex-shrink-0">
               <Image
-                src={movie.poster || defaultImages.moviePoster}
+                src={movie.webpPoster || movie.poster || defaultImages.webpMoviePoster || defaultImages.moviePoster}
                 alt={movie.title}
                 fill
                 className="object-cover rounded-md"

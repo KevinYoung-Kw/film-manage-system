@@ -171,8 +171,10 @@ supabase.from = function(table: string) {
   const methods = ['select', 'insert', 'update', 'delete', 'upsert'];
   
   methods.forEach(method => {
-    if (typeof builder[method as keyof typeof builder] === 'function') {
-      const original = builder[method as keyof typeof builder].bind(builder);
+    // 确保方法存在且是函数类型
+    if (builder && typeof builder[method as keyof typeof builder] === 'function') {
+      // 使用类型断言确保TypeScript识别正确的类型
+      const original = (builder[method as keyof typeof builder] as Function).bind(builder);
       // @ts-expect-error - 动态改写方法
       builder[method] = function(...args: any[]) {
         const result = original(...args);
@@ -263,12 +265,48 @@ supabase.rpc = function(procedureName, params, options) {
 // 创建一个管理员客户端（使用正确的认证令牌）
 export const getAdminClient = async () => {
   try {
+    // 确保会话有效
+    await checkAndRefreshSession();
+    
     // 获取当前认证令牌
     const token = await getAuthToken();
     
     if (!token) {
-      console.error('无法获取认证令牌，管理操作将失败');
-      throw new Error('未授权：需要管理员权限才能执行此操作');
+      console.error('无法获取认证令牌，尝试刷新会话...');
+      // 强制刷新会话
+      if (typeof window !== 'undefined') {
+        const sessionStr = localStorage.getItem('session');
+        if (sessionStr) {
+          try {
+            const userSession = JSON.parse(sessionStr);
+            if (userSession?.email && userSession?.role && userSession?.user_id) {
+              await signInWithCredentials(
+                userSession.email, 
+                userSession.role, 
+                userSession.user_id
+              );
+              // 重新获取令牌
+              const newToken = await getAuthToken();
+              if (!newToken) {
+                throw new Error('刷新会话后仍无法获取有效令牌');
+              }
+            }
+          } catch (e) {
+            console.error('刷新会话失败:', e);
+            throw new Error('会话无效：无法执行管理操作');
+          }
+        } else {
+          throw new Error('未授权：需要管理员权限才能执行此操作');
+        }
+      } else {
+        throw new Error('未授权：需要管理员权限才能执行此操作');
+      }
+    }
+    
+    // 再次获取最新令牌
+    const finalToken = await getAuthToken();
+    if (!finalToken) {
+      throw new Error('无法获取有效的认证令牌');
     }
     
     // 获取当前用户信息
@@ -291,7 +329,7 @@ export const getAdminClient = async () => {
     console.log('创建管理客户端:', { 
       userId: user.id, 
       role: userRole, 
-      tokenValid: !!token 
+      tokenValid: !!finalToken 
     });
     
     // 创建一个新的Supabase客户端，包含认证头
@@ -304,7 +342,7 @@ export const getAdminClient = async () => {
       },
       global: {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${finalToken}`,
           // 添加额外的头信息，确保角色信息正确传递
           'x-client-info': JSON.stringify({
             agent: 'supabase-js/2.x',

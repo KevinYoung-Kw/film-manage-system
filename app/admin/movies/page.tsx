@@ -354,7 +354,7 @@ export default function MoviesManagementPage() {
                     <div className="flex items-center">
                       <div className="h-14 w-10 flex-shrink-0 mr-3 relative">
                         <Image
-                          src={processImageUrl(movie.poster) || DEFAULT_POSTER_URL}
+                          src={processImageUrl(movie.webpPoster || movie.poster) || DEFAULT_POSTER_URL}
                           alt={movie.title}
                           fill
                           className="object-cover rounded"

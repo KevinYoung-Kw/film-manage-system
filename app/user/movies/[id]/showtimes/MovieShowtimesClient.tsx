@@ -182,7 +182,7 @@ export default function MovieShowtimesClient({ movie }: MovieShowtimesClientProp
         <div className="flex">
           <div className="relative h-24 w-16 rounded overflow-hidden">
             <Image
-              src={movie.poster || defaultImages.moviePoster}
+              src={movie.webpPoster || movie.poster || defaultImages.webpMoviePoster || defaultImages.moviePoster}
               alt={movie.title}
               fill
               className="object-cover"

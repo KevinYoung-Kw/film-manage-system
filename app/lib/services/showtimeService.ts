@@ -463,8 +463,12 @@ export const ShowtimeService = {
   // 获取指定日期的场次
   getShowtimesByDate: async (date: Date): Promise<Showtime[]> => {
     try {
-      // 将输入日期转换为ISO日期格式字符串 (YYYY-MM-DD)
-      const dateStr = date.toISOString().split('T')[0];
+      // 确保使用本地日期的开始和结束时间
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+      
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
       
       // 构建查询
       const { data, error } = await supabase
@@ -489,12 +493,12 @@ export const ShowtimeService = {
             name
           )
         `)
-        .gte('start_time', `${dateStr}T00:00:00`)
-        .lt('start_time', `${dateStr}T23:59:59`)
+        .gte('start_time', startOfDay.toISOString())
+        .lt('start_time', endOfDay.toISOString())
         .order('start_time');
         
       if (error) {
-        console.error(`获取${dateStr}场次失败:`, error);
+        console.error(`获取场次失败:`, error);
         return [];
       }
       
