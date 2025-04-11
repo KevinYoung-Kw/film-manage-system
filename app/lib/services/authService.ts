@@ -49,47 +49,8 @@ export const AuthService = {
 
       console.log('密码验证成功');
       
-      // 尝试使用本地JWT绕过方式登录
-      try {
-        console.log('尝试使用本地JWT令牌生成方式登录...');
-        const jwtResult = await fetch(`/api/debug/jwt-bypass?email=${encodeURIComponent(user.email)}&role=${encodeURIComponent(user.role)}&user_id=${encodeURIComponent(user.id)}`);
-        const jwtData = await jwtResult.json();
-        
-        if (jwtData.success && jwtData.access_token) {
-          console.log('成功生成JWT令牌，设置会话状态...');
-          await supabase.auth.setSession({
-            access_token: jwtData.access_token,
-            refresh_token: ''
-          });
-          
-          // 登录成功后存储会话信息到本地存储(用于UI显示)
-          const session = {
-            user_id: user.id,
-            email: user.email,
-            role: user.role,
-            name: user.name
-          };
-          
-          // 保存会话信息到本地存储
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('session', JSON.stringify(session));
-          }
-          
-          return {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            role: user.role as UserRole,
-            createdAt: new Date(user.created_at)
-          };
-        } else {
-          console.error('JWT令牌生成失败，尝试常规登录流程:', jwtData);
-        }
-      } catch (jwtError) {
-        console.error('JWT登录方式失败，尝试常规登录流程:', jwtError);
-      }
-
-      // 创建Supabase会话
+      // 使用Supabase Auth服务创建会话
+      console.log('尝试创建Supabase会话...');
       const sessionCreated = await signInWithCredentials(user.email, user.role, user.id);
       
       if (!sessionCreated) {
@@ -98,19 +59,6 @@ export const AuthService = {
       }
       
       console.log('创建Supabase会话成功');
-
-      // 登录成功后存储会话信息到本地存储(用于UI显示)
-      const session = {
-        user_id: user.id,
-        email: user.email,
-        role: user.role,
-        name: user.name
-      };
-
-      // 保存会话信息到本地存储
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('session', JSON.stringify(session));
-      }
 
       return {
         id: user.id,
@@ -168,47 +116,27 @@ export const AuthService = {
         throw new Error('注册失败: ' + (error?.message || '未知错误'));
       }
 
-      // 尝试使用本地JWT绕过方式登录
-      try {
-        console.log('尝试使用本地JWT令牌生成方式登录新注册用户...');
-        const jwtResult = await fetch(`/api/debug/jwt-bypass?email=${encodeURIComponent(user.email)}&role=${encodeURIComponent(user.role)}&user_id=${encodeURIComponent(user.id)}`);
-        const jwtData = await jwtResult.json();
-        
-        if (jwtData.success && jwtData.access_token) {
-          console.log('成功生成JWT令牌，设置会话状态...');
-          await supabase.auth.setSession({
-            access_token: jwtData.access_token,
-            refresh_token: ''
-          });
-          
-          // 登录成功后存储会话信息到本地存储(用于UI显示)
-          const session = {
-            user_id: user.id,
-            email: user.email,
+      // 使用Supabase Auth服务创建会话
+      console.log('尝试为新注册用户创建Supabase会话...');
+      
+      // 1. 首先在Auth服务中创建用户
+      const { error: signUpError } = await supabase.auth.signUp({
+        email: email,
+        password: 'film-system-token-' + user.id.substring(0, 8),
+        options: {
+          data: {
             role: user.role,
-            name: user.name
-          };
-          
-          // 保存会话信息到本地存储
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('session', JSON.stringify(session));
+            user_db_id: user.id,
+            name: name
           }
-          
-          return {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            role: user.role as UserRole,
-            createdAt: new Date(user.created_at)
-          };
-        } else {
-          console.error('JWT令牌生成失败，尝试常规登录流程:', jwtData);
         }
-      } catch (jwtError) {
-        console.error('JWT登录方式失败，尝试常规登录流程:', jwtError);
+      });
+      
+      if (signUpError) {
+        console.warn('在Auth服务中创建用户失败，但数据库用户已创建:', signUpError);
       }
-
-      // 创建Supabase会话
+      
+      // 2. 使用signInWithCredentials登录
       const sessionCreated = await signInWithCredentials(user.email, user.role, user.id);
       
       if (!sessionCreated) {
@@ -217,19 +145,6 @@ export const AuthService = {
       }
       
       console.log('创建Supabase会话成功');
-
-      // 注册成功后存储会话信息到本地存储(用于UI显示)
-      const session = {
-        user_id: user.id,
-        email: user.email,
-        role: user.role,
-        name: user.name
-      };
-
-      // 保存会话信息到本地存储
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('session', JSON.stringify(session));
-      }
 
       return {
         id: user.id,
@@ -289,31 +204,6 @@ export const AuthService = {
         return null;
       }
 
-      // 检查并刷新会话
-      const { data: authSession } = await supabase.auth.getSession();
-      if (!authSession?.session) {
-        // 如果没有有效的会话，尝试使用JWT绕过方式重新创建
-        try {
-          console.log('会话无效，尝试使用JWT重新创建...');
-          const jwtResult = await fetch(`/api/debug/jwt-bypass?email=${encodeURIComponent(user.email)}&role=${encodeURIComponent(user.role)}&user_id=${encodeURIComponent(user.id)}`);
-          const jwtData = await jwtResult.json();
-          
-          if (jwtData.success && jwtData.access_token) {
-            console.log('成功重新生成JWT令牌，刷新会话状态...');
-            await supabase.auth.setSession({
-              access_token: jwtData.access_token,
-              refresh_token: ''
-            });
-          } else {
-            // 如果JWT方式失败，尝试常规方式
-            await signInWithCredentials(user.email, user.role, user.id);
-          }
-        } catch (e) {
-          // 如果JWT方式出错，尝试常规方式
-          await signInWithCredentials(user.email, user.role, user.id);
-        }
-      }
-
       return {
         id: user.id,
         name: user.name,
@@ -332,7 +222,38 @@ export const AuthService = {
    * @returns 当前用户信息
    */
   initSession: async (): Promise<User | null> => {
-    return await AuthService.getCurrentUser();
+    try {
+      // 首先检查本地存储中是否有会话信息
+      let session = null;
+      if (typeof window !== 'undefined') {
+        const sessionStr = localStorage.getItem('session');
+        if (sessionStr) {
+          try {
+            session = JSON.parse(sessionStr);
+          } catch (e) {
+            console.error('解析会话信息失败:', e);
+          }
+        }
+      }
+
+      // 如果有本地会话，尝试刷新令牌
+      if (session?.user_id && session?.email && session?.role) {
+        // 检查当前Supabase会话状态
+        const { data: { session: supabaseSession } } = await supabase.auth.getSession();
+        
+        // 如果没有有效的Supabase会话，尝试重新创建
+        if (!supabaseSession) {
+          console.log('本地会话存在但Supabase会话已过期，尝试刷新...');
+          await signInWithCredentials(session.email, session.role, session.user_id);
+        }
+      }
+      
+      // 最后获取当前用户信息
+      return await AuthService.getCurrentUser();
+    } catch (error) {
+      console.error('初始化会话失败:', error);
+      return null;
+    }
   },
 
   /**

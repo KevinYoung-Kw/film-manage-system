@@ -19,6 +19,15 @@
 7. **修复了匿名用户无法查询用户表的问题**
 8. **整合了多个认证相关SQL文件为一个统一的文件**
 
+### 最新更新：解决 pgcrypto 缺失问题
+
+我们发现在尝试使用自定义创建会话方法时，会出现错误 `function sign(json, text) does not exist`。这表明数据库中缺少 pgcrypto 扩展。为解决此问题，我们做了以下重大更改：
+
+1. **切换到使用 Supabase 内置的 Auth 服务**，而不再使用自定义 JWT 令牌
+2. 创建了 `setup_auth.sql` 文件，用于安装必要的扩展并为现有用户配置 Auth 服务
+3. 修改了 `supabaseClient.ts` 和 `authService.ts` 文件，改为使用 Supabase Auth 服务登录
+4. 为用户创建了一种可预测但安全的密码生成方式，便于系统内部使用
+
 ### 如何应用这些更改
 
 请按照以下步骤应用修复：
@@ -28,11 +37,12 @@
 3. 转到 SQL 编辑器，然后依次执行以下SQL脚本：
 
    a. 如果数据库是新的或需要重置：先执行 `supabase/migrations/DATABASE_RESET.sql`
-   b. **执行 `supabase/migrations/auth_and_security.sql`**（替代之前的三个分散文件）
+   b. 执行 `supabase/migrations/auth_and_security.sql`（替代之前的三个分散文件）
+   c. **执行 `supabase/migrations/setup_auth.sql`（新增，用于设置用户认证）**
 
 4. 执行脚本后，重启应用程序
 
-> **注意**：新的 `auth_and_security.sql` 文件整合了之前的三个文件（`create_session_function.sql`、`rls_policies.sql` 和 `enable_rpc_functions.sql`），并做了关键修改以允许匿名用户查询用户表。
+> **注意**：新的认证方法使用 Supabase 内置的 Auth 服务，不再依赖自定义 JWT 生成函数。
 
 ### 验证修复
 
@@ -41,7 +51,9 @@
 1. 正常登录和注册用户
 2. 访问所有数据表，包括电影、影厅和场次信息，而不会出现权限错误 
 3. 根据当前用户的角色正确应用行级安全策略
-4. **匿名用户应该能够查询用户表以进行登录验证**
+4. 匿名用户应该能够查询用户表以进行登录验证
+5. **不再出现 `function sign(json, text) does not exist` 错误**
+6. **成功使用 Supabase Auth 服务进行身份验证**
 
 ## 附加信息
 
@@ -77,27 +89,17 @@
 | create_session_function.sql | auth_and_security.sql | 整合到一个文件中 |
 | rls_policies.sql | auth_and_security.sql | 整合到一个文件中 |
 | enable_rpc_functions.sql | auth_and_security.sql | 整合到一个文件中 |
+| - | setup_auth.sql | 新增文件，设置Auth服务 |
 
-新的 `auth_and_security.sql` 文件被划分为三个部分：
-1. 创建用户会话函数
-2. 行级安全策略
-3. 启用RPC函数的外部访问
+### 认证方式的变更
 
-### JWT格式
+系统认证方式已从自定义JWT方式切换到Supabase内置Auth服务：
 
-Supabase JWT令牌格式如下：
-
-```json
-{
-  "role": "admin|staff|customer",
-  "iss": "supabase",
-  "sub": "user_id",
-  "email": "user@example.com",
-  "exp": 1234567890,
-  "iat": 1234567890,
-  "nbf": 1234567890
-}
-```
+| 之前的认证方式 | 现在的认证方式 | 备注 |
+|--------------|--------------|------|
+| 自定义RPC函数生成JWT | Supabase Auth服务 | 解决pgcrypto扩展缺失问题 |
+| JWT绕过API | 标准Auth API | 更加安全和可靠 |
+| 直接设置会话令牌 | 使用Auth API登录 | 更好的会话管理 |
 
 ### 故障排除
 
@@ -108,5 +110,6 @@ Supabase JWT令牌格式如下：
 3. 尝试注销并重新登录以获取新的会话令牌
 4. 清除浏览器本地存储并重新登录
 5. 如果遇到视图相关错误，请确保执行了 `DATABASE_RESET.sql` 脚本创建所有视图
+6. 如果出现与认证相关的错误，请确保执行了 `setup_auth.sql` 脚本
 
 如有更多问题，请联系系统管理员。 

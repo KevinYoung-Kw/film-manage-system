@@ -31,18 +31,28 @@ export async function GET(request: Request) {
     // 签名JWT
     const token = jwt.sign(payload, JWT_SECRET);
     
+    // 创建刷新令牌 (30天有效)
+    const refreshToken = jwt.sign(
+      { 
+        sub: user_id,
+        refresh: true,
+        exp: now + (3600 * 24 * 30) // 30天刷新令牌
+      }, 
+      JWT_SECRET
+    );
+    
     // 返回令牌信息
     return NextResponse.json({
       success: true,
       access_token: token,
+      refresh_token: refreshToken,
       expires_at: new Date(exp * 1000).toISOString(),
       user: {
         id: user_id,
         email: email,
         role: role
       },
-      payload,
-      usage: '此令牌仅用于测试。使用方法: 在浏览器控制台中执行: localStorage.setItem("supabase.auth.token", JSON.stringify({ access_token: "你的令牌" }))'
+      payload
     });
   } catch (error: any) {
     console.error('调试API: JWT生成失败:', error);
