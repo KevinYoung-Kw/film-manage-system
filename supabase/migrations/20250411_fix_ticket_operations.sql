@@ -22,10 +22,17 @@ DECLARE
   v_now TIMESTAMP WITH TIME ZONE := CURRENT_TIMESTAMP;
   v_is_admin BOOLEAN;
   v_is_staff BOOLEAN;
+  v_showtime RECORD;
+  v_minutes_to_start INTEGER;
+  v_minutes_after_start INTEGER;
 BEGIN
+  -- 记录函数调用信息，用于调试
+  RAISE NOTICE 'check_ticket函数被调用, 参数: p_order_id=%, p_staff_id=%', p_order_id, p_staff_id;
+  
   -- 检查权限
   SELECT auth.get_user_role() = 'admin' INTO v_is_admin;
   SELECT auth.get_user_role() = 'staff' INTO v_is_staff;
+  RAISE NOTICE '用户角色检查：admin=%, staff=%', v_is_admin, v_is_staff;
   
   -- 检查是否有权限执行此操作
   IF NOT (v_is_admin OR v_is_staff) THEN
@@ -34,57 +41,128 @@ BEGIN
   END IF;
 
   -- 检查订单是否存在
-  SELECT * INTO v_order FROM orders 
-  WHERE id = p_order_id;
-  
-  IF NOT FOUND THEN
-    RETURN QUERY SELECT false AS success, '订单不存在' AS message;
+  BEGIN
+    SELECT * INTO v_order FROM orders 
+    WHERE id = p_order_id;
+    
+    IF NOT FOUND THEN
+      RETURN QUERY SELECT false AS success, '订单不存在' AS message;
+      RETURN;
+    END IF;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE '查询订单时发生错误: %', SQLERRM;
+    RETURN QUERY SELECT false AS success, '查询订单时发生错误: ' || SQLERRM AS message;
     RETURN;
-  END IF;
+  END;
   
   -- 检查订单状态是否为已支付
+  RAISE NOTICE '订单状态检查: status=%', v_order.status;
   IF v_order.status != 'paid' THEN
     RETURN QUERY SELECT false AS success, '只有已支付的订单可以检票' AS message;
     RETURN;
   END IF;
   
   -- 检查是否已经检票
+  RAISE NOTICE '检票状态检查: checked_at=%', v_order.checked_at;
   IF v_order.checked_at IS NOT NULL THEN
     RETURN QUERY SELECT false AS success, '订单已经检票' AS message;
     RETURN;
   END IF;
   
+  -- 获取场次信息，检查时间限制
+  BEGIN
+    SELECT s.* INTO v_showtime 
+    FROM showtimes s
+    WHERE s.id = v_order.showtime_id;
+    
+    IF NOT FOUND THEN
+      RETURN QUERY SELECT false AS success, '找不到相关场次信息' AS message;
+      RETURN;
+    END IF;
+    
+    -- 计算与开场时间的差距（分钟）
+    IF v_showtime.start_time > v_now THEN
+      -- 电影未开始，计算距离开场还有多少分钟
+      v_minutes_to_start := EXTRACT(EPOCH FROM (v_showtime.start_time - v_now)) / 60;
+      RAISE NOTICE '电影未开始，距离开场时间还有 % 分钟', v_minutes_to_start;
+      
+      -- 检查是否在开场前30分钟内
+      IF v_minutes_to_start > 30 THEN
+        RETURN QUERY SELECT false AS success, '只能在开场前30分钟内检票，当前距离开场还有' || v_minutes_to_start || '分钟' AS message;
+        RETURN;
+      END IF;
+    ELSE
+      -- 电影已开始，计算开场后多少分钟
+      v_minutes_after_start := EXTRACT(EPOCH FROM (v_now - v_showtime.start_time)) / 60;
+      RAISE NOTICE '电影已开始 % 分钟', v_minutes_after_start;
+      
+      -- 检查是否在开场后15分钟内（允许迟到入场）
+      IF v_minutes_after_start > 15 THEN
+        RETURN QUERY SELECT false AS success, '电影已开场' || v_minutes_after_start || '分钟，超过了15分钟的迟到入场时间' AS message;
+        RETURN;
+      END IF;
+    END IF;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE '检查场次时间时发生错误: %', SQLERRM;
+    RETURN QUERY SELECT false AS success, '检查场次时间时发生错误: ' || SQLERRM AS message;
+    RETURN;
+  END;
+  
   -- 更新订单状态为已检票
-  UPDATE orders
-  SET ticket_status = 'used',
-      checked_at = v_now
-  WHERE id = p_order_id;
+  BEGIN
+    UPDATE orders
+    SET ticket_status = 'used',
+        checked_at = v_now
+    WHERE id = p_order_id;
+    
+    RAISE NOTICE '订单状态已更新为已检票';
+  EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE '更新订单状态时发生错误: %', SQLERRM;
+    RETURN QUERY SELECT false AS success, '更新订单状态时发生错误: ' || SQLERRM AS message;
+    RETURN;
+  END;
   
   -- 记录工作人员操作
-  INSERT INTO staff_operations (
-    staff_id,
-    operation_type,
-    order_id,
-    details
-  ) VALUES (
-    p_staff_id,
-    'check',
-    p_order_id,
-    jsonb_build_object(
-      'checked_at', v_now
-    )
-  );
+  BEGIN
+    INSERT INTO staff_operations (
+      staff_id,
+      operation_type,
+      order_id,
+      details
+    ) VALUES (
+      p_staff_id,
+      'check',
+      p_order_id,
+      jsonb_build_object(
+        'checked_at', v_now,
+        'showtime_start', v_showtime.start_time,
+        'minutes_to_start', v_minutes_to_start,
+        'minutes_after_start', v_minutes_after_start
+      )
+    );
+    
+    RAISE NOTICE '已记录工作人员检票操作';
+  EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE '记录工作人员操作时发生错误: %', SQLERRM;
+    -- 记录操作失败，但不影响检票结果
+    RETURN QUERY SELECT true AS success, '检票成功，但记录操作失败' AS message;
+    RETURN;
+  END;
   
   -- 返回成功
   RETURN QUERY SELECT true AS success, '检票成功' AS message;
 EXCEPTION WHEN OTHERS THEN
   -- 如果发生错误
+  RAISE NOTICE '检票过程中发生未知错误: %', SQLERRM;
   RETURN QUERY SELECT false AS success, '检票失败: ' || SQLERRM AS message;
 END;
 $$;
 
 -- 授予执行权限
 GRANT EXECUTE ON FUNCTION check_ticket(TEXT, UUID) TO authenticated, service_role;
+
+-- 为匿名用户授予权限（如果需要支持检票访客）
+GRANT EXECUTE ON FUNCTION check_ticket(TEXT, UUID) TO anon;
 
 -- 删除所有可能的refund_ticket函数版本，避免冲突
 DROP FUNCTION IF EXISTS public.refund_ticket(character varying, character varying, character varying);

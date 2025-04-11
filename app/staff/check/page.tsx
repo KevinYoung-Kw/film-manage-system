@@ -1,101 +1,106 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { QrCode, TicketCheck, Check, X, Search, Clock, AlertTriangle } from 'lucide-react';
 import MobileLayout from '@/app/components/layout/MobileLayout';
 import { Card } from '@/app/components/ui/Card';
 import Button from '@/app/components/ui/Button';
-import { mockOrders, mockShowtimes, mockMovies, mockTheaters } from '@/app/lib/mockData';
 import { OrderStatus, StaffOperationType, TicketStatus } from '@/app/lib/types';
 import { format, differenceInMinutes } from 'date-fns';
+import { StaffService } from '@/app/lib/services/staffService';
+import { useAppContext } from '@/app/lib/context/AppContext';
+import { OrderService } from '@/app/lib/services/orderService';
 
 export default function StaffCheckPage() {
   const [ticketCode, setTicketCode] = useState('');
   const [scanMode, setScanMode] = useState<'manual' | 'scan'>('manual');
   const [checkResult, setCheckResult] = useState<'success' | 'failed' | null>(null);
   const [checkedOrder, setCheckedOrder] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const { currentUser } = useAppContext();
   
   // 处理检票
-  const handleCheck = () => {
-    // 模拟检票过程，实际中应当调用API检查票码是否有效
-    // 这里简单地通过订单ID匹配
-    const order = mockOrders.find(o => o.id === ticketCode);
+  const handleCheck = async () => {
+    if (!ticketCode || !currentUser?.id) {
+      console.log('检票缺少必要参数', { ticketCode, userId: currentUser?.id });
+      return;
+    }
     
-    if (order && order.status === OrderStatus.PAID) {
-      // 查找场次和电影信息
-      const showtime = mockShowtimes.find(s => s.id === order.showtimeId);
-      const movie = showtime ? mockMovies.find(m => m.id === showtime.movieId) : null;
-      const theater = showtime ? mockTheaters.find(t => t.id === showtime.theaterId) : null;
+    setIsLoading(true);
+    console.log('开始检票处理', { ticketCode, userId: currentUser.id });
+    
+    try {
+      // 调用检票API
+      console.log('调用检票API', { orderId: ticketCode, staffId: currentUser.id });
+      const result = await StaffService.checkTicket(currentUser.id, ticketCode);
+      console.log('检票API返回结果', result);
       
-      // 检查场次时间
-      const now = new Date();
-      const showtimeDate = showtime ? new Date(showtime.startTime) : null;
-      
-      if (!showtimeDate) {
-        setCheckedOrder(null);
-        setCheckResult('failed');
-        return;
-      }
-      
-      // 计算当前时间与开场时间的分钟差
-      const minutesToShowtime = differenceInMinutes(showtimeDate, now);
-      const minutesAfterStart = differenceInMinutes(now, showtimeDate);
-      
-      // 电影已经开始超过15分钟，不允许检票
-      if (showtimeDate < now && minutesAfterStart > 15) {
-        setCheckedOrder({
-          ...order,
-          showtime,
-          movie,
-          theater,
-          seatCount: order.seats.length,
-          isExpired: true,
-          minutesLate: minutesAfterStart
-        });
+      if (result.success) {
+        // 检票成功，尝试获取订单详情
+        console.log('检票成功，获取订单详情');
+        const orderDetails = await OrderService.getOrderById(ticketCode);
+        console.log('订单详情', orderDetails);
+        
+        if (orderDetails) {
+          console.log('订单详情中的showtime', orderDetails.showtime);
+          
+          // 设置检票成功结果
+          setCheckedOrder({
+            ...orderDetails,
+            id: ticketCode,
+            seatCount: orderDetails.seats?.length || 0
+          });
+          
+          setCheckResult('success');
+          console.log('检票处理完成: 成功');
+        } else {
+          // 找不到订单详情，但检票操作已成功
+          console.log('找不到订单详情，但检票操作已成功');
+          setCheckedOrder({
+            id: ticketCode
+          });
+          setCheckResult('success');
+        }
+      } else {
+        // 检票失败
+        console.log('检票失败', result.message);
+        
+        // 处理时间相关的错误信息
+        const isTimeRelatedError = 
+          result.message?.includes('开场前30分钟') ||
+          result.message?.includes('分钟的迟到入场时间');
+        
+        setErrorMessage(result.message);
+        
+        // 如果是时间相关的错误，可以获取订单并展示更多信息
+        if (isTimeRelatedError) {
+          try {
+            const orderDetails = await OrderService.getOrderById(ticketCode);
+            if (orderDetails && orderDetails.showtime) {
+              setCheckedOrder({
+                ...orderDetails,
+                id: ticketCode,
+                timeError: true,
+                errorMessage: result.message
+              });
+            }
+          } catch (err) {
+            console.error('获取订单信息失败', err);
+          }
+        } else {
+          setCheckedOrder(null);
+        }
         
         setCheckResult('failed');
-        return;
       }
-      
-      // 电影还未开始且距离开场超过30分钟，不允许检票
-      if (showtimeDate > now && minutesToShowtime > 30) {
-        setCheckedOrder({
-          ...order,
-          showtime,
-          movie,
-          theater,
-          seatCount: order.seats.length,
-          tooEarly: true,
-          minutesToShowtime
-        });
-        
-        setCheckResult('failed');
-        return;
-      }
-      
-      // 电影已开场但在允许迟到的15分钟内
-      const isLate = showtimeDate < now && minutesAfterStart <= 15;
-      
-      setCheckedOrder({
-        ...order,
-        showtime,
-        movie,
-        theater,
-        seatCount: order.seats.length,
-        isLate,
-        minutesLate: isLate ? minutesAfterStart : 0
-      });
-      
-      setCheckResult('success');
-      
-      // 模拟更新票券状态
-      if (order.ticketStatus !== TicketStatus.USED) {
-        order.ticketStatus = TicketStatus.USED;
-        order.checkedAt = now;
-      }
-    } else {
+    } catch (error) {
+      console.error('检票过程发生错误:', error);
+      setErrorMessage(error instanceof Error ? error.message : '未知错误');
       setCheckedOrder(null);
       setCheckResult('failed');
+    } finally {
+      setIsLoading(false);
     }
   };
   
@@ -104,6 +109,7 @@ export default function StaffCheckPage() {
     setTicketCode('');
     setCheckResult(null);
     setCheckedOrder(null);
+    setErrorMessage('');
   };
   
   // 渲染检票结果
@@ -111,49 +117,43 @@ export default function StaffCheckPage() {
     if (checkResult === 'success') {
       return (
         <Card className="mb-4">
-          <div className={`p-4 ${checkedOrder.isLate ? 'bg-amber-50 border-b border-amber-100' : 'bg-green-50 border-b border-green-100'} flex items-center`}>
-            <div className={`${checkedOrder.isLate ? 'bg-amber-100' : 'bg-green-100'} p-2 rounded-full mr-3`}>
-              {checkedOrder.isLate ? (
-                <AlertTriangle className="h-6 w-6 text-amber-600" />
-              ) : (
-                <Check className="h-6 w-6 text-green-600" />
-              )}
+          <div className="p-4 bg-green-50 border-b border-green-100 flex items-center">
+            <div className="bg-green-100 p-2 rounded-full mr-3">
+              <Check className="h-6 w-6 text-green-600" />
             </div>
             <div>
-              <h3 className={`font-medium ${checkedOrder.isLate ? 'text-amber-800' : 'text-green-800'}`}>
-                {checkedOrder.isLate ? '迟到检票成功' : '检票成功'}
-              </h3>
-              <p className={`text-sm ${checkedOrder.isLate ? 'text-amber-600' : 'text-green-600'}`}>
-                订单ID: {checkedOrder.id}
-                {checkedOrder.isLate && ` · 迟到${checkedOrder.minutesLate}分钟`}
+              <h3 className="font-medium text-green-800">检票成功</h3>
+              <p className="text-sm text-green-600">
+                订单ID: {checkedOrder?.id}
               </p>
             </div>
           </div>
           <div className="p-4">
-            <div className="mb-2">
-              <span className="text-sm text-slate-500">电影:</span>
-              <span className="font-medium ml-2">{checkedOrder.movie?.title}</span>
-            </div>
-            <div className="mb-2">
-              <span className="text-sm text-slate-500">场次:</span>
-              <span className="font-medium ml-2">
-                {format(checkedOrder.showtime?.startTime, 'MM-dd HH:mm')}
-              </span>
-            </div>
-            <div className="mb-2">
-              <span className="text-sm text-slate-500">影厅:</span>
-              <span className="font-medium ml-2">{checkedOrder.theater?.name}</span>
-            </div>
-            <div className="mb-2">
-              <span className="text-sm text-slate-500">座位数:</span>
-              <span className="font-medium ml-2">{checkedOrder.seatCount}个</span>
-            </div>
-            {checkedOrder.isLate && (
-              <div className="p-3 bg-amber-50 rounded-md text-sm text-amber-700 mb-3">
-                <div className="flex items-center">
-                  <AlertTriangle className="h-4 w-4 mr-2 flex-shrink-0" />
-                  <span>电影已开始，请提醒观众安静入场</span>
-                </div>
+            {checkedOrder?.movie && (
+              <div className="mb-2">
+                <span className="text-sm text-slate-500">电影:</span>
+                <span className="font-medium ml-2">{checkedOrder.movie?.title}</span>
+              </div>
+            )}
+            {checkedOrder?.showtime && (
+              <div className="mb-2">
+                <span className="text-sm text-slate-500">场次:</span>
+                <span className="font-medium ml-2">
+                  {checkedOrder.showtime.startTime && 
+                   format(new Date(checkedOrder.showtime.startTime), 'MM-dd HH:mm')}
+                </span>
+              </div>
+            )}
+            {checkedOrder?.theater && (
+              <div className="mb-2">
+                <span className="text-sm text-slate-500">影厅:</span>
+                <span className="font-medium ml-2">{checkedOrder.theater?.name}</span>
+              </div>
+            )}
+            {checkedOrder?.seatCount > 0 && (
+              <div className="mb-2">
+                <span className="text-sm text-slate-500">座位数:</span>
+                <span className="font-medium ml-2">{checkedOrder.seatCount}个</span>
               </div>
             )}
             <Button
@@ -180,40 +180,41 @@ export default function StaffCheckPage() {
             <div>
               <h3 className="font-medium text-red-800">检票失败</h3>
               <p className="text-sm text-red-600">
-                {checkedOrder?.isExpired 
-                  ? '电影开场已超过15分钟，无法检票' 
-                  : checkedOrder?.tooEarly
-                  ? '未到检票时间，过早检票'
-                  : '订单不存在或已被使用'}
+                {errorMessage || '订单不存在或已被使用'}
               </p>
             </div>
           </div>
           <div className="p-4">
-            <p className="text-slate-600 mb-3">可能的原因:</p>
-            <ul className="text-sm text-slate-500 list-disc list-inside space-y-1 mb-3">
-              {checkedOrder?.isExpired ? (
-                <>
-                  <li>电影开场时间：{format(checkedOrder.showtime?.startTime, 'yyyy-MM-dd HH:mm')}</li>
-                  <li>当前系统时间：{format(new Date(), 'yyyy-MM-dd HH:mm')}</li>
-                  <li>已超过允许入场时间（开场后15分钟内可入场）</li>
-                  <li>迟到时间：{checkedOrder.minutesLate}分钟</li>
-                </>
-              ) : checkedOrder?.tooEarly ? (
-                <>
-                  <li>距离电影开场还有 {checkedOrder.minutesToShowtime} 分钟</li>
-                  <li>电影开场时间：{format(checkedOrder.showtime?.startTime, 'yyyy-MM-dd HH:mm')}</li>
-                  <li>当前系统时间：{format(new Date(), 'yyyy-MM-dd HH:mm')}</li>
-                  <li>只能在电影开场前30分钟内检票入场</li>
-                </>
-              ) : (
-                <>
+            {checkedOrder?.timeError ? (
+              <>
+                <p className="text-slate-600 mb-3">检票时间限制:</p>
+                <div className="bg-amber-50 p-3 rounded-md mb-3">
+                  <div className="flex items-start mb-1">
+                    <Clock className="h-4 w-4 text-amber-600 mr-2 mt-0.5" />
+                    <p className="text-sm text-amber-700">{errorMessage}</p>
+                  </div>
+                  {checkedOrder?.showtime?.startTime && (
+                    <div className="flex items-center mt-2">
+                      <span className="text-xs text-amber-600 mr-2">开场时间:</span>
+                      <span className="text-sm font-medium text-amber-800">
+                        {format(new Date(checkedOrder.showtime.startTime), 'yyyy-MM-dd HH:mm')}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 mb-3">提示: 请在电影开场前30分钟内或开场后15分钟内检票</p>
+              </>
+            ) : (
+              <>
+                <p className="text-slate-600 mb-3">可能的原因:</p>
+                <ul className="text-sm text-slate-500 list-disc list-inside space-y-1 mb-3">
                   <li>订单ID输入错误</li>
                   <li>票已被检验过</li>
                   <li>订单已取消或退款</li>
                   <li>订单未完成支付</li>
-                </>
-              )}
-            </ul>
+                </ul>
+              </>
+            )}
             <Button
               variant="primary"
               fullWidth
@@ -276,7 +277,8 @@ export default function StaffCheckPage() {
                     variant="primary"
                     fullWidth
                     onClick={handleCheck}
-                    disabled={!ticketCode}
+                    disabled={!ticketCode || isLoading}
+                    isLoading={isLoading}
                   >
                     <TicketCheck className="h-4 w-4 mr-2" />
                     验票
@@ -297,47 +299,12 @@ export default function StaffCheckPage() {
                   <Button
                     variant="primary"
                     onClick={() => {
-                      // 获取当前时间
-                      const now = new Date();
-                      
-                      // 获取可检票的场次（开场前30分钟内或开场后15分钟内的场次）
-                      const validShowtimes = mockShowtimes.filter(s => {
-                        const showtimeDate = new Date(s.startTime);
-                        if (showtimeDate > now) {
-                          // 电影未开始：30分钟内可检票
-                          const minutesToShowtime = differenceInMinutes(showtimeDate, now);
-                          return minutesToShowtime >= 0 && minutesToShowtime <= 30;
-                        } else {
-                          // 电影已开始：15分钟内可迟到检票
-                          const minutesAfterStart = differenceInMinutes(now, showtimeDate);
-                          return minutesAfterStart <= 15;
-                        }
-                      });
-                      
-                      if (validShowtimes.length > 0) {
-                        // 获取有效场次的订单
-                        const validOrders = mockOrders.filter(o => 
-                          validShowtimes.some(s => s.id === o.showtimeId) && 
-                          o.status === OrderStatus.PAID &&
-                          o.ticketStatus !== TicketStatus.USED // 票未使用
-                        );
-                        
-                        if (validOrders.length > 0) {
-                          // 随机选择一个有效订单
-                          const randomOrder = validOrders[Math.floor(Math.random() * validOrders.length)];
-                          setTicketCode(randomOrder.id);
-                        } else {
-                          // 没有有效订单，使用默认ID
-                          setTicketCode('TK2504060001');
-                        }
-                      } else {
-                        // 没有可检票的场次，使用默认ID
-                        setTicketCode('TK2504060001');
-                      }
-                      
-                      // 进行检票
+                      // 在实际环境中这里会调用相机扫描二维码
+                      // 为了测试，这里手动设置一个简单的订单ID
+                      setTicketCode('TK' + Date.now().toString().substring(6, 13));
                       setTimeout(handleCheck, 100);
                     }}
+                    disabled={isLoading}
                   >
                     <QrCode className="h-4 w-4 mr-2" />
                     模拟扫码
