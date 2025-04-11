@@ -8,7 +8,7 @@ import { User, Clock, Calendar, Ticket, Settings, LogOut, Bell } from 'lucide-re
 import MobileLayout from '@/app/components/layout/MobileLayout';
 import { Card } from '@/app/components/ui/Card';
 import Button from '@/app/components/ui/Button';
-import { ScheduleService } from '@services/scheduleService';
+import { ScheduleService } from '@/app/lib/services/scheduleService';
 import { ShiftType } from '@/app/lib/types';
 import { userRoutes } from '@/app/lib/utils/navigation';
 import Link from 'next/link';
