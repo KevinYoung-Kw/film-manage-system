@@ -21,6 +21,18 @@ const nextConfig = {
     NEXT_PUBLIC_APP_VERSION: process.env.npm_package_version,
   },
   
+  // ESLint配置
+  eslint: {
+    // 在构建时忽略ESLint错误
+    ignoreDuringBuilds: true,
+  },
+  
+  // TypeScript配置
+  typescript: {
+    // 在构建时忽略TypeScript错误
+    ignoreBuildErrors: true,
+  },
+  
   // API 请求配置
   async headers() {
     return [

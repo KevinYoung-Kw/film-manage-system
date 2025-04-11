@@ -149,23 +149,23 @@ interface CustomErrorResponse {
 
 // 添加拦截器处理401错误和会话过期
 const originalFrom = supabase.from.bind(supabase);
-// @ts-ignore - 重写类型以添加拦截器
-supabase.from = function(table) {
+// @ts-expect-error - 重写类型以添加拦截器
+supabase.from = function(table: string) {
   const builder = originalFrom(table);
   
   // 重写各种方法的结果处理
   const methods = ['select', 'insert', 'update', 'delete', 'upsert'];
   
   methods.forEach(method => {
-    if (typeof builder[method] === 'function') {
-      const original = builder[method].bind(builder);
-      // @ts-ignore - 动态改写方法
-      builder[method] = function(...args) {
+    if (typeof builder[method as keyof typeof builder] === 'function') {
+      const original = builder[method as keyof typeof builder].bind(builder);
+      // @ts-expect-error - 动态改写方法
+      builder[method] = function(...args: any[]) {
         const result = original(...args);
         
         // 添加自定义then处理
         const originalThen = result.then.bind(result);
-        result.then = async function(resolve: Function, reject: Function) {
+        result.then = async function(resolve: any, reject: any) {
           try {
             const response = await originalThen((r: any) => r);
             
@@ -203,7 +203,7 @@ supabase.from = function(table) {
 
 // 添加响应拦截器处理常见错误
 const originalRpc = supabase.rpc.bind(supabase);
-// @ts-ignore - 类型重写以添加错误处理
+// @ts-expect-error - 类型重写以添加错误处理
 supabase.rpc = function(procedureName, params, options) {
   return originalRpc(procedureName, params, options)
     .then(async (response) => {

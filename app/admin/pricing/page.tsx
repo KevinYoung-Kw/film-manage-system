@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Plus, X, DollarSign, Calendar, Clock, Film, Tag } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { format } from 'date-fns';
+import { Plus, Tag, DollarSign, Calendar, X, Film, Edit, Trash, Clock, Check } from 'lucide-react';
 import { PricingService, TicketTypeModel, PricingStrategyModel } from '@/app/lib/services/pricingService';
 
 export default function PricingManagementPage() {

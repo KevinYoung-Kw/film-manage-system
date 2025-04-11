@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { MovieService } from '@services/dataService';
+import { MovieService } from '@/app/lib/services/movieService';
 import MovieShowtimesClient from './MovieShowtimesClient';
 import { Movie } from '@/app/lib/types';
 

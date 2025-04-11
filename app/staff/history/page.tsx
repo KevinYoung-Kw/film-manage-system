@@ -9,24 +9,6 @@ import Button from '@/app/components/ui/Button';
 import { StaffOperationType } from '@/app/lib/types';
 import supabase from '@/app/lib/services/supabaseClient';
 import { useAppContext } from '@/app/lib/context/AppContext';
-import { processImageUrl } from '@/app/lib/services/dataService';
-
-// 定义从数据库返回的操作记录类型
-interface DbOperation {
-  id: string;
-  operation_type: string;
-  order_id: string | null;
-  showtime_id: string | null;
-  details: any;
-  created_at: string;
-  orders: {
-    id: string;
-    status: string;
-    total_price: number;
-    showtime_id: string;
-  } | null;
-  // 其他可能的字段
-}
 
 // 定义展示用的操作记录类型
 interface EnhancedOperation {
@@ -35,10 +17,20 @@ interface EnhancedOperation {
   orderId: string | null;
   showtimeId: string | null;
   createdAt: Date;
-  order: any | null;
-  showtime: any | null;
-  movie: any | null;
-  details: any;
+  order: {
+    id: string;
+    status: string;
+    totalPrice: number;
+  } | null;
+  showtime: {
+    id: string;
+    start_time: string;
+    theaterName: string;
+  } | null;
+  movie: {
+    title: string;
+  } | null;
+  details: Record<string, any>;
 }
 
 export default function StaffHistoryPage() {
@@ -84,11 +76,11 @@ export default function StaffHistoryPage() {
             orderId: operation.order_id,
             showtimeId: operation.showtime_id,
             createdAt: new Date(operation.created_at),
-            order: {
+            order: operation.related_order_id ? {
               id: operation.related_order_id,
               status: operation.order_status,
               totalPrice: operation.total_price
-            },
+            } : null,
             showtime: operation.start_time ? {
               id: operation.showtime_id,
               start_time: operation.start_time,
@@ -155,7 +147,7 @@ export default function StaffHistoryPage() {
   const getOperationDescription = (operation: EnhancedOperation) => {
     switch(operation.type) {
       case StaffOperationType.SELL:
-        return `售出 ${operation.details.seats?.length || 1} 张票`;
+        return `售出 ${(operation.details.seats as any[])?.length || 1} 张票`;
       case StaffOperationType.CHECK:
         return `验票成功`;
       case StaffOperationType.REFUND:
@@ -289,19 +281,24 @@ export default function StaffHistoryPage() {
                     {operation.type === StaffOperationType.SELL && operation.details.payment_method && (
                       <div className="mt-2 text-xs bg-slate-50 p-2 rounded">
                         <span className="text-slate-500">支付方式: </span>
-                        <span className="font-medium">{
-                          operation.details.payment_method === 'cash' ? '现金' :
-                          operation.details.payment_method === 'wechat' ? '微信支付' :
-                          operation.details.payment_method === 'alipay' ? '支付宝' : 
-                          operation.details.payment_method
-                        }</span>
+                        <span className="font-medium">
+                          {typeof operation.details.payment_method === 'string' ? 
+                            (operation.details.payment_method === 'cash' ? '现金' :
+                             operation.details.payment_method === 'wechat' ? '微信支付' :
+                             operation.details.payment_method === 'alipay' ? '支付宝' : 
+                             operation.details.payment_method) : 
+                            '未知支付方式'}
+                        </span>
                       </div>
                     )}
                     
                     {operation.type === StaffOperationType.REFUND && operation.details.reason && (
                       <div className="mt-2 text-xs bg-slate-50 p-2 rounded">
                         <span className="text-slate-500">退款原因: </span>
-                        <span className="font-medium">{operation.details.reason}</span>
+                        <span className="font-medium">
+                          {typeof operation.details.reason === 'string' ? 
+                            operation.details.reason : '未指定原因'}
+                        </span>
                       </div>
                     )}
                   </div>
