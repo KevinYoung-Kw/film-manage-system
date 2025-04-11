@@ -1,10 +1,13 @@
--- 业务函数
--- 创建订单函数
+-- 更新create_order函数
+-- 修复行级安全策略错误：new row violates row-level security policy for table "orders"
+
+-- 函数签名保持一致，但改进内部实现
 CREATE OR REPLACE FUNCTION create_order(
     p_user_id UUID,
     p_showtime_id UUID,
     p_seat_ids UUID[],
-    p_ticket_type TEXT
+    p_ticket_type TEXT,
+    p_payment_method_id UUID DEFAULT NULL
 ) RETURNS TABLE (
     success BOOLEAN,
     message TEXT,
@@ -20,7 +23,23 @@ DECLARE
     v_now TIMESTAMP := CURRENT_TIMESTAMP;
     v_order_date TEXT;
     v_order_num TEXT;
+    v_is_admin BOOLEAN;
+    v_is_staff BOOLEAN;
 BEGIN
+    -- 检查权限
+    -- 获取当前用户角色并检查是否为管理员或工作人员
+    SELECT auth.get_user_role() = 'admin' INTO v_is_admin;
+    SELECT auth.get_user_role() = 'staff' INTO v_is_staff;
+    
+    -- 检查权限：只有管理员/工作人员可以为他人下单，普通用户只能为自己下单
+    IF NOT (v_is_admin OR v_is_staff) THEN
+        -- 检查user_id是否等于当前认证用户的数据库ID
+        IF p_user_id != auth.get_user_db_id() THEN
+            RETURN QUERY SELECT FALSE, '权限不足：只能为自己创建订单', NULL::TEXT;
+            RETURN;
+        END IF;
+    END IF;
+    
     -- 检查输入参数
     IF p_user_id IS NULL THEN
         RETURN QUERY SELECT FALSE, '用户ID不能为空', NULL::TEXT;
@@ -149,6 +168,29 @@ BEGIN
         VALUES (v_order_id, v_seat_id, v_now);
     END LOOP;
     
+    -- 如果提供了支付方式ID，立即创建支付记录
+    IF p_payment_method_id IS NOT NULL THEN
+        -- 插入支付记录
+        INSERT INTO payments (
+            order_id,
+            payment_method_id,
+            amount,
+            status,
+            created_at
+        ) VALUES (
+            v_order_id,
+            p_payment_method_id,
+            v_total_price,
+            'success',
+            v_now
+        );
+        
+        -- 更新订单状态为已支付
+        UPDATE orders
+        SET status = 'paid', paid_at = v_now
+        WHERE id = v_order_id;
+    END IF;
+    
     -- 返回成功消息
     RETURN QUERY SELECT TRUE, '订单创建成功', v_order_id;
     RETURN;
@@ -162,4 +204,4 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 授予执行权限给所有角色
-GRANT EXECUTE ON FUNCTION create_order(UUID, UUID, UUID[], TEXT) TO anon, authenticated, service_role; 
+GRANT EXECUTE ON FUNCTION create_order(UUID, UUID, UUID[], TEXT, UUID) TO anon, authenticated, service_role; 
