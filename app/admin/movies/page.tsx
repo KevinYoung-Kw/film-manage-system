@@ -4,9 +4,26 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Filter, X, Calendar, Clock, Check } from 'lucide-react';
 import { MovieStatus, Movie } from '@/app/lib/types';
 import Image from 'next/image';
-import { defaultImages } from '@/app/lib/mockData';
 import { processImageUrl } from '@/app/lib/services/dataService';
 import { MovieService } from '@/app/lib/services/movieService';
+import { AuthService } from '@/app/lib/services/authService';
+
+// 添加用户角色验证函数
+const verifyAdminAccess = async () => {
+  try {
+    const currentUser = await AuthService.getCurrentUser();
+    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'staff')) {
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('验证用户权限失败:', error);
+    return false;
+  }
+};
+
+// 默认图片URL
+const DEFAULT_POSTER_URL = 'https://via.placeholder.com/300x450?text=No+Poster';
 
 export default function MoviesManagementPage() {
   const [movies, setMovies] = useState<Movie[]>([]);
@@ -17,16 +34,31 @@ export default function MoviesManagementPage() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [editedMovie, setEditedMovie] = useState<Movie | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   
   // 刷新数据
   const refreshData = async () => {
     setIsLoading(true);
     try {
+      // 验证用户权限
+      const hasAccess = await verifyAdminAccess();
+      if (!hasAccess) {
+        setAuthError('您没有权限访问此页面');
+        setIsLoading(false);
+        return;
+      }
+
       const moviesData = await MovieService.getAllMovies();
       setMovies(moviesData);
+      setAuthError(null);
     } catch (error) {
       console.error('加载电影数据失败:', error);
-      alert('加载电影失败，请刷新页面重试');
+      
+      if (error instanceof Error && error.name === 'AuthorizationError') {
+        setAuthError('权限错误：' + error.message);
+      } else {
+        alert('加载电影失败，请刷新页面重试');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -76,6 +108,13 @@ export default function MoviesManagementPage() {
     try {
       setIsLoading(true);
       
+      // 再次验证用户权限
+      const hasAccess = await verifyAdminAccess();
+      if (!hasAccess) {
+        setAuthError('您没有权限执行此操作');
+        return;
+      }
+      
       // 确保日期格式正确
       if (editedMovie.releaseDate && typeof editedMovie.releaseDate === 'string') {
         editedMovie.releaseDate = new Date(editedMovie.releaseDate);
@@ -86,6 +125,7 @@ export default function MoviesManagementPage() {
       
       if (updated) {
         setSaveSuccess(true);
+        setAuthError(null);
         setTimeout(() => {
           setSaveSuccess(false);
           setShowEditModal(false);
@@ -96,7 +136,16 @@ export default function MoviesManagementPage() {
       }
     } catch (error) {
       console.error('保存电影失败:', error);
-      alert('保存失败，请重试');
+      
+      if (error instanceof Error) {
+        if (error.name === 'AuthorizationError') {
+          setAuthError('权限错误：' + error.message);
+        } else {
+          alert('保存失败：' + error.message);
+        }
+      } else {
+        alert('保存失败，请重试');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -110,17 +159,33 @@ export default function MoviesManagementPage() {
     
     try {
       setIsLoading(true);
+      
+      // 再次验证用户权限
+      const hasAccess = await verifyAdminAccess();
+      if (!hasAccess) {
+        setAuthError('您没有权限执行此操作');
+        return;
+      }
+      
       const success = await MovieService.deleteMovie(movieId);
       
       if (success) {
         alert('电影已删除');
+        setAuthError(null);
         refreshData();
-      } else {
-        alert('删除失败，请重试');
       }
     } catch (error) {
       console.error('删除电影失败:', error);
-      alert('删除失败，请重试');
+      
+      if (error instanceof Error) {
+        if (error.name === 'AuthorizationError') {
+          setAuthError('权限错误：您需要管理员权限才能删除电影');
+        } else {
+          alert('删除失败：' + error.message);
+        }
+      } else {
+        alert('删除失败，请重试');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -131,6 +196,13 @@ export default function MoviesManagementPage() {
     try {
       setIsLoading(true);
       
+      // 再次验证用户权限
+      const hasAccess = await verifyAdminAccess();
+      if (!hasAccess) {
+        setAuthError('您没有权限执行此操作');
+        return;
+      }
+      
       // 确保日期格式正确
       if (movieData.releaseDate && typeof movieData.releaseDate === 'string') {
         movieData.releaseDate = new Date(movieData.releaseDate);
@@ -140,6 +212,7 @@ export default function MoviesManagementPage() {
       
       if (newMovie) {
         setSaveSuccess(true);
+        setAuthError(null);
         setTimeout(() => {
           setSaveSuccess(false);
           setShowAddModal(false);
@@ -150,14 +223,68 @@ export default function MoviesManagementPage() {
       }
     } catch (error) {
       console.error('添加电影失败:', error);
-      alert('添加失败，请重试');
+      
+      if (error instanceof Error) {
+        if (error.name === 'AuthorizationError') {
+          setAuthError('权限错误：' + error.message);
+        } else {
+          alert('添加失败：' + error.message);
+        }
+      } else {
+        alert('添加失败，请重试');
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
+  // 初始化一个新电影表单
+  const handleInitNewMovie = () => {
+    const defaultMovie: Omit<Movie, 'id'> = {
+      title: '',
+      originalTitle: '',
+      description: '',
+      duration: 120,
+      director: '',
+      releaseDate: new Date(),
+      actors: ['演员1', '演员2'],
+      genre: ['类型1', '类型2'],
+      poster: DEFAULT_POSTER_URL,
+      status: MovieStatus.COMING_SOON,
+      rating: 0
+    };
+    setEditedMovie(defaultMovie as any);
+    setShowAddModal(true);
+  };
+
   return (
     <div className="container mx-auto px-4 py-6">
+      {/* 权限错误提示 */}
+      {authError && (
+        <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+          <p className="font-bold">权限错误</p>
+          <p>{authError}</p>
+          <button 
+            className="mt-2 px-3 py-1 bg-red-500 text-white rounded text-sm"
+            onClick={() => {
+              // 尝试刷新会话
+              AuthService.initSession().then(user => {
+                if (user) {
+                  setAuthError(null);
+                  refreshData();
+                } else {
+                  // 如果刷新会话失败，提示用户重新登录
+                  alert('请重新登录以获取正确权限');
+                  // 可以在这里添加重定向到登录页面的逻辑
+                }
+              });
+            }}
+          >
+            刷新会话
+          </button>
+        </div>
+      )}
+
       {/* 过滤和添加按钮 */}
       <div className="flex justify-between items-center mb-6">
         <div className="flex space-x-2">
@@ -227,7 +354,7 @@ export default function MoviesManagementPage() {
                     <div className="flex items-center">
                       <div className="h-14 w-10 flex-shrink-0 mr-3 relative">
                         <Image
-                          src={processImageUrl(movie.poster)}
+                          src={processImageUrl(movie.poster) || DEFAULT_POSTER_URL}
                           alt={movie.title}
                           fill
                           className="object-cover rounded"
@@ -534,7 +661,7 @@ export default function MoviesManagementPage() {
                   director: '导演',
                   actors: ['演员1', '演员2'],
                   genre: ['类型1', '类型2'],
-                  poster: defaultImages.moviePoster,
+                  poster: DEFAULT_POSTER_URL,
                   status: MovieStatus.COMING_SOON,
                   rating: 0
                 })}

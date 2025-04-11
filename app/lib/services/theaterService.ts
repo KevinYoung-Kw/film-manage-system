@@ -1,4 +1,4 @@
-import supabase from './supabaseClient';
+import supabase, { getAdminClient } from './supabaseClient';
 import { Theater, TheaterSeatLayout } from '../types';
 
 /**
@@ -72,7 +72,10 @@ export const TheaterService = {
    */
   createTheater: async (theater: Omit<Theater, 'id'>): Promise<Theater | null> => {
     try {
-      const { data, error } = await supabase
+      // 获取带有认证的管理员客户端
+      const adminClient = await getAdminClient();
+      
+      const { data, error } = await adminClient
         .from('theaters')
         .insert([{
           name: theater.name,
@@ -110,6 +113,9 @@ export const TheaterService = {
    */
   updateTheater: async (theaterId: string, theaterData: Partial<Theater>): Promise<Theater | null> => {
     try {
+      // 获取带有认证的管理员客户端
+      const adminClient = await getAdminClient();
+      
       // 转换为数据库格式
       const updateData: any = {};
       if (theaterData.name !== undefined) updateData.name = theaterData.name;
@@ -118,7 +124,7 @@ export const TheaterService = {
       if (theaterData.columns !== undefined) updateData.columns = theaterData.columns;
       if (theaterData.equipment !== undefined) updateData.equipment = theaterData.equipment;
 
-      const { error } = await supabase
+      const { error } = await adminClient
         .from('theaters')
         .update(updateData)
         .eq('id', theaterId);
@@ -142,8 +148,11 @@ export const TheaterService = {
    */
   deleteTheater: async (theaterId: string): Promise<boolean> => {
     try {
+      // 获取带有认证的管理员客户端
+      const adminClient = await getAdminClient();
+      
       // 检查是否有关联的场次
-      const { count, error: countError } = await supabase
+      const { count, error: countError } = await adminClient
         .from('showtimes')
         .select('id', { count: 'exact', head: true })
         .eq('theater_id', theaterId);
@@ -156,7 +165,7 @@ export const TheaterService = {
         throw new Error('该影厅已有关联场次，无法删除');
       }
 
-      const { error } = await supabase
+      const { error } = await adminClient
         .from('theaters')
         .delete()
         .eq('id', theaterId);

@@ -138,6 +138,20 @@ export const checkAndRefreshSession = async (): Promise<boolean> => {
 };
 
 /**
+ * 获取当前身份验证会话的JWT令牌
+ * @returns JWT令牌或null
+ */
+export const getAuthToken = async (): Promise<string | null> => {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token || null;
+  } catch (error) {
+    console.error('获取认证令牌失败:', error);
+    return null;
+  }
+};
+
+/**
  * 自定义错误处理类型
  */
 interface CustomErrorResponse {
@@ -246,7 +260,66 @@ supabase.rpc = function(procedureName, params, options) {
     });
 };
 
-// 创建一个管理员客户端（目前只是普通客户端的别名，实际项目中可能需要使用服务端角色密钥）
+// 创建一个管理员客户端（使用正确的认证令牌）
+export const getAdminClient = async () => {
+  try {
+    // 获取当前认证令牌
+    const token = await getAuthToken();
+    
+    if (!token) {
+      console.error('无法获取认证令牌，管理操作将失败');
+      throw new Error('未授权：需要管理员权限才能执行此操作');
+    }
+    
+    // 获取当前用户信息
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      console.error('无法获取用户信息，管理操作将失败');
+      throw new Error('未授权：无法验证用户身份');
+    }
+    
+    // 检查用户元数据中是否有角色信息
+    const userRole = user.user_metadata?.role || 'customer';
+    
+    // 只允许管理员或员工进行管理操作
+    if (userRole !== 'admin' && userRole !== 'staff') {
+      console.error('用户角色不足，需要admin或staff角色');
+      throw new Error(`未授权：需要管理员或员工权限（当前角色: ${userRole}）`);
+    }
+    
+    console.log('创建管理客户端:', { 
+      userId: user.id, 
+      role: userRole, 
+      tokenValid: !!token 
+    });
+    
+    // 创建一个新的Supabase客户端，包含认证头
+    return createClient<Database>(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        storageKey: 'film-manage-system-auth',
+        detectSessionInUrl: false
+      },
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          // 添加额外的头信息，确保角色信息正确传递
+          'x-client-info': JSON.stringify({
+            agent: 'supabase-js/2.x',
+            role: userRole
+          })
+        }
+      }
+    });
+  } catch (error) {
+    console.error('创建管理客户端失败:', error);
+    throw new Error('认证失败: ' + (error instanceof Error ? error.message : '未知错误'));
+  }
+};
+
+// 兼容旧代码，但不推荐直接使用
 export const supabaseAdmin = supabase;
 
 export default supabase; 

@@ -3,47 +3,77 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { format } from 'date-fns';
-import { CreditCard, Check, MapPin } from 'lucide-react';
+import { CreditCard, Check, MapPin, AlertCircle } from 'lucide-react';
 import MobileLayout from '@/app/components/layout/MobileLayout';
 import { Card } from '@/app/components/ui/Card';
 import Button from '@/app/components/ui/Button';
 import SeatMap from '@/app/components/SeatMap';
-import { mockShowtimes, mockMovies, mockTheaters } from '@/app/lib/mockData';
-import { TicketType } from '@/app/lib/types';
+import { TicketType, Movie, Showtime, Theater } from '@/app/lib/types';
 import { staffRoutes } from '@/app/lib/utils/navigation';
+import { MovieService } from '@/app/lib/services/movieService';
+import { ShowtimeService } from '@/app/lib/services/showtimeService';
+import { TheaterService } from '@/app/lib/services/theaterService';
 
 export default function StaffSeatSelectionPage() {
   const router = useRouter();
   const params = useParams();
   const showtimeId = typeof params.id === 'string' ? params.id : Array.isArray(params.id) ? params.id[0] : '';
-  const [showtime, setShowtime] = useState<any>(null);
-  const [movie, setMovie] = useState<any>(null);
-  const [theater, setTheater] = useState<any>(null);
+  const [showtime, setShowtime] = useState<Showtime | null>(null);
+  const [movie, setMovie] = useState<Movie | null>(null);
+  const [theater, setTheater] = useState<Theater | null>(null);
   const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
   const [ticketType, setTicketType] = useState<TicketType>(TicketType.NORMAL);
   const [ticketCount, setTicketCount] = useState<number>(1);
   const [customerName, setCustomerName] = useState<string>('');
   const [customerPhone, setCustomerPhone] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   useEffect(() => {
-    // 获取场次、电影和影厅信息
-    const foundShowtime = mockShowtimes.find(s => s.id === showtimeId);
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // 获取场次信息
+        const showtimeData = await ShowtimeService.getShowtimeById(showtimeId);
+        
+        if (!showtimeData) {
+          setError('无法找到场次信息');
+          return;
+        }
+        
+        setShowtime(showtimeData);
+        
+        // 获取电影信息
+        const movieData = await MovieService.getMovieById(showtimeData.movieId);
+        if (movieData) {
+          setMovie(movieData);
+        } else {
+          setError('无法找到电影信息');
+          return;
+        }
+        
+        // 获取影厅信息
+        const theaterData = await TheaterService.getTheaterById(showtimeData.theaterId);
+        if (theaterData) {
+          setTheater(theaterData);
+        } else {
+          setError('无法找到影厅信息');
+          return;
+        }
+      } catch (err) {
+        console.error('获取数据失败:', err);
+        setError('加载数据失败，请稍后重试');
+      } finally {
+        setLoading(false);
+      }
+    };
     
-    if (!foundShowtime) {
-      router.push(staffRoutes.sell);
-      return;
+    if (showtimeId) {
+      fetchData();
     }
-    
-    setShowtime(foundShowtime);
-    
-    const foundMovie = mockMovies.find(m => m.id === foundShowtime.movieId);
-    const foundTheater = mockTheaters.find(t => t.id === foundShowtime.theaterId);
-    
-    if (foundMovie && foundTheater) {
-      setMovie(foundMovie);
-      setTheater(foundTheater);
-    }
-  }, [showtimeId, router]);
+  }, [showtimeId]);
   
   // 处理座位选择
   const handleSeatSelection = (seatId: string) => {
@@ -67,7 +97,7 @@ export default function StaffSeatSelectionPage() {
   const getSeatLabel = (seatId: string) => {
     if (!showtime) return '';
     
-    const seat = showtime.availableSeats.find((s: any) => s.id === seatId);
+    const seat = showtime.availableSeats.find(s => s.id === seatId);
     if (!seat) return '';
     
     // 转换为字母行号 (A, B, C...)
@@ -94,7 +124,7 @@ export default function StaffSeatSelectionPage() {
     
     // 对每个选中的座位，计算其价格
     selectedSeats.forEach(seatId => {
-      const seat = showtime.availableSeats.find((s: any) => s.id === seatId);
+      const seat = showtime.availableSeats.find(s => s.id === seatId);
       if (seat) {
         // 基础票价取决于票类型
         const basePrice = showtime.price[ticketType];
@@ -124,6 +154,11 @@ export default function StaffSeatSelectionPage() {
       return;
     }
     
+    if (!showtime || !movie || !theater) {
+      alert('数据加载错误，请重试');
+      return;
+    }
+    
     // 在实际应用中，这里会调用API创建订单
     // 简单模拟创建订单并跳转
     const orderData = {
@@ -148,8 +183,33 @@ export default function StaffSeatSelectionPage() {
     router.push(staffRoutes.sellCheckout(showtime.id));
   };
   
-  if (!showtime || !movie || !theater) {
-    return <div className="flex justify-center items-center min-h-screen">加载中...</div>;
+  if (loading) {
+    return (
+      <MobileLayout title="选座售票" userRole="staff" showBackButton>
+        <div className="flex flex-col items-center justify-center h-96">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500" />
+          <p className="mt-4 text-slate-500">加载中...</p>
+        </div>
+      </MobileLayout>
+    );
+  }
+  
+  if (error || !showtime || !movie || !theater) {
+    return (
+      <MobileLayout title="选座售票" userRole="staff" showBackButton>
+        <div className="flex flex-col items-center justify-center h-96">
+          <AlertCircle className="h-16 w-16 text-red-500 mb-4" />
+          <p className="text-red-500 font-medium">{error || '加载失败'}</p>
+          <Button 
+            variant="outline"
+            className="mt-4"
+            onClick={() => router.push(staffRoutes.sell)}
+          >
+            返回
+          </Button>
+        </div>
+      </MobileLayout>
+    );
   }
   
   return (
@@ -160,7 +220,7 @@ export default function StaffSeatSelectionPage() {
           <div className="p-4 border-b border-slate-100">
             <h2 className="font-medium">{movie.title}</h2>
             <div className="text-sm text-slate-500 mt-1 flex">
-              <span className="mr-3">{format(new Date(showtime.startTime), 'MM月dd日 HH:mm')}</span>
+              <span className="mr-3">{format(showtime.startTime, 'MM月dd日 HH:mm')}</span>
               <span>{theater.name}</span>
             </div>
           </div>
@@ -211,6 +271,17 @@ export default function StaffSeatSelectionPage() {
                 </button>
               ))}
             </div>
+          </div>
+          
+          {/* 座位图 */}
+          <div className="p-4 border-b border-slate-100">
+            <SeatMap
+              seats={showtime.availableSeats}
+              rows={theater.rows}
+              columns={theater.columns}
+              selectedSeats={selectedSeats}
+              onSeatSelect={handleSeatSelection}
+            />
           </div>
         </Card>
       </div>

@@ -36,6 +36,11 @@ export interface Movie {
   genre: string[];
   rating: number; // 1-10的评分
   status?: MovieStatus;  // 电影状态
+  // 扩展属性 - 统计信息
+  totalShowtimes?: number; // 总场次数
+  totalOrders?: number;   // 总订单数
+  totalRevenue?: number;  // 总票房收入
+  showtimeCount?: number; // 当前场次数
 }
 
 // 影厅类型

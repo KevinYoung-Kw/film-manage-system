@@ -1,6 +1,21 @@
-import supabase from './supabaseClient';
+import supabase, { getAdminClient } from './supabaseClient';
 import { Movie, MovieStatus } from '../types';
 import { processImageUrl } from './dataService';
+
+// 自定义错误类型
+class AuthorizationError extends Error {
+  constructor(message = '需要管理员或工作人员权限进行此操作') {
+    super(message);
+    this.name = 'AuthorizationError';
+  }
+}
+
+class DatabaseError extends Error {
+  constructor(message: string, public originalError?: any) {
+    super(message);
+    this.name = 'DatabaseError';
+  }
+}
 
 /**
  * 电影服务 - 处理电影相关功能
@@ -168,7 +183,10 @@ export const MovieService = {
    */
   addMovie: async (movie: Omit<Movie, 'id'>): Promise<Movie | null> => {
     try {
-      const { data, error } = await supabase
+      // 获取带有认证的管理员客户端
+      const adminClient = await getAdminClient();
+      
+      const { data, error } = await adminClient
         .from('movies')
         .insert([{
           title: movie.title,
@@ -188,8 +206,18 @@ export const MovieService = {
         .select()
         .single();
 
-      if (error || !data) {
-        throw new Error('添加电影失败: ' + error?.message || '未知错误');
+      if (error) {
+        // 检查是否是权限错误
+        if (error.code === '42501' || error.code === '403' || error.message?.includes('permission denied')) {
+          console.error('添加电影权限错误:', error);
+          throw new AuthorizationError();
+        }
+        
+        throw new DatabaseError(`添加电影失败: ${error.message}`, error);
+      }
+
+      if (!data) {
+        throw new DatabaseError('添加电影失败: 未返回数据');
       }
 
       return {
@@ -209,8 +237,13 @@ export const MovieService = {
         status: data.status as MovieStatus || MovieStatus.COMING_SOON
       };
     } catch (error) {
+      // 如果是我们自定义的错误，直接抛出
+      if (error instanceof AuthorizationError || error instanceof DatabaseError) {
+        throw error;
+      }
+      
       console.error('添加电影失败:', error);
-      throw error;
+      throw new Error('添加电影失败: 服务器错误');
     }
   },
 
@@ -222,6 +255,9 @@ export const MovieService = {
    */
   updateMovie: async (movieId: string, movieData: Partial<Movie>): Promise<Movie | null> => {
     try {
+      // 获取带有认证的管理员客户端
+      const adminClient = await getAdminClient();
+      
       // 转换为数据库格式
       const updateData: any = {};
       if (movieData.title !== undefined) updateData.title = movieData.title;
@@ -238,17 +274,29 @@ export const MovieService = {
       if (movieData.rating !== undefined) updateData.rating = movieData.rating;
       if (movieData.status !== undefined) updateData.status = movieData.status;
 
-      const { data, error } = await supabase
+      console.log('更新电影数据:', { movieId, updateData });
+      const { data, error } = await adminClient
         .from('movies')
         .update(updateData)
         .eq('id', movieId)
         .select()
         .single();
 
-      if (error || !data) {
-        throw new Error('更新电影信息失败: ' + error?.message || '未知错误');
+      if (error) {
+        // 检查是否是权限错误
+        if (error.code === '42501' || error.code === '403' || error.message?.includes('permission denied')) {
+          console.error('更新电影权限错误:', error);
+          throw new AuthorizationError();
+        }
+        
+        throw new DatabaseError(`更新电影信息失败: ${error.message}`, error);
       }
 
+      if (!data) {
+        throw new DatabaseError('更新电影信息失败: 未返回数据');
+      }
+
+      console.log('电影更新成功:', data);
       return {
         id: data.id,
         title: data.title,
@@ -266,8 +314,13 @@ export const MovieService = {
         status: data.status as MovieStatus || MovieStatus.COMING_SOON
       };
     } catch (error) {
+      // 如果是我们自定义的错误，直接抛出
+      if (error instanceof AuthorizationError || error instanceof DatabaseError) {
+        throw error;
+      }
+      
       console.error('更新电影信息失败:', error);
-      throw error;
+      throw new Error('更新电影信息失败: 服务器错误');
     }
   },
 
@@ -279,19 +332,35 @@ export const MovieService = {
    */
   updateMovieStatus: async (movieId: string, status: MovieStatus): Promise<boolean> => {
     try {
-      const { error } = await supabase
+      // 获取带有认证的管理员客户端
+      const adminClient = await getAdminClient();
+      
+      console.log('更新电影状态:', { movieId, status });
+      const { error } = await adminClient
         .from('movies')
         .update({ status })
         .eq('id', movieId);
 
       if (error) {
-        throw new Error('更新电影状态失败: ' + error.message);
+        // 检查是否是权限错误
+        if (error.code === '42501' || error.code === '403' || error.message?.includes('permission denied')) {
+          console.error('更新电影状态权限错误:', error);
+          throw new AuthorizationError();
+        }
+        
+        throw new DatabaseError(`更新电影状态失败: ${error.message}`, error);
       }
 
+      console.log('电影状态更新成功');
       return true;
     } catch (error) {
+      // 如果是我们自定义的错误，直接抛出
+      if (error instanceof AuthorizationError || error instanceof DatabaseError) {
+        throw error;
+      }
+      
       console.error('更新电影状态失败:', error);
-      throw error;
+      throw new Error('更新电影状态失败: 服务器错误');
     }
   },
 
@@ -302,19 +371,35 @@ export const MovieService = {
    */
   deleteMovie: async (movieId: string): Promise<boolean> => {
     try {
-      const { error } = await supabase
+      // 获取带有认证的管理员客户端
+      const adminClient = await getAdminClient();
+      
+      console.log('删除电影:', { movieId });
+      const { error } = await adminClient
         .from('movies')
         .delete()
         .eq('id', movieId);
 
       if (error) {
-        throw new Error('删除电影失败: ' + error.message);
+        // 检查是否是权限错误
+        if (error.code === '42501' || error.code === '403' || error.message?.includes('permission denied')) {
+          console.error('删除电影权限错误:', error);
+          throw new AuthorizationError('需要管理员权限才能删除电影');
+        }
+        
+        throw new DatabaseError(`删除电影失败: ${error.message}`, error);
       }
 
+      console.log('电影删除成功');
       return true;
     } catch (error) {
+      // 如果是我们自定义的错误，直接抛出
+      if (error instanceof AuthorizationError || error instanceof DatabaseError) {
+        throw error;
+      }
+      
       console.error('删除电影失败:', error);
-      throw error;
+      throw new Error('删除电影失败: 服务器错误');
     }
   },
 

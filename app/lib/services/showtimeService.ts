@@ -1,4 +1,4 @@
-import supabase from './supabaseClient';
+import supabase, { getAdminClient } from './supabaseClient';
 import { Showtime, Seat, TicketType } from '../types';
 
 // 座位工具函数 - 将数据库座位数据转换为前端模型
@@ -27,8 +27,15 @@ export const ShowtimeService = {
           price_student,
           price_senior,
           price_child,
-          movies(title, poster, webp_poster, duration),
-          theaters(name)
+          movies!inner (
+            title, 
+            poster, 
+            webp_poster, 
+            duration
+          ),
+          theaters!inner (
+            name
+          )
         `)
         .order('start_time');
         
@@ -39,16 +46,21 @@ export const ShowtimeService = {
       
       // 查询每个场次的座位数据
       const showtimes = await Promise.all(
-        data.map(async (showtime) => {
+        data.map(async (showtime: any) => {
           const seats = await ShowtimeService.getSeatsForShowtime(showtime.id);
+          
+          // 安全地访问嵌套属性
+          const movies = showtime.movies || {};
+          const theaters = showtime.theaters || {};
+          
           return {
             id: showtime.id,
             movieId: showtime.movie_id,
             theaterId: showtime.theater_id,
-            movieTitle: showtime.movies.title,
-            moviePoster: showtime.movies.webp_poster || showtime.movies.poster,
-            movieDuration: showtime.movies.duration,
-            theaterName: showtime.theaters.name,
+            movieTitle: movies.title || '',
+            moviePoster: movies.webp_poster || movies.poster || '',
+            movieDuration: movies.duration || 0,
+            theaterName: theaters.name || '',
             startTime: new Date(showtime.start_time),
             endTime: new Date(showtime.end_time),
             price: {
@@ -72,9 +84,38 @@ export const ShowtimeService = {
   // 获取今日场次
   getTodayShowtimes: async (): Promise<Showtime[]> => {
     try {
+      // 获取今天的日期范围
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      // 查询今天的场次
       const { data, error } = await supabase
-        .from('vw_today_showtimes')
-        .select('*')
+        .from('showtimes')
+        .select(`
+          id,
+          movie_id,
+          theater_id,
+          start_time,
+          end_time,
+          price_normal,
+          price_student,
+          price_senior,
+          price_child,
+          movies!inner (
+            title, 
+            poster, 
+            webp_poster, 
+            duration
+          ),
+          theaters!inner (
+            name
+          )
+        `)
+        .gte('start_time', today.toISOString())
+        .lt('start_time', tomorrow.toISOString())
         .order('start_time');
         
       if (error) {
@@ -84,28 +125,23 @@ export const ShowtimeService = {
       
       // 查询每个场次的座位数据
       const showtimes = await Promise.all(
-        data.map(async (showtime) => {
+        data.map(async (showtime: any) => {
           const seats = await ShowtimeService.getSeatsForShowtime(showtime.id);
           
-          // 确保所有字段都有有效值，避免null值导致类型错误
-          const moviePoster = typeof showtime.movie_poster === 'string' ? showtime.movie_poster : '';
-          const movieDuration = typeof showtime.movie_duration === 'number' ? showtime.movie_duration : 0;
-          const theaterName = typeof showtime.theater_name === 'string' ? showtime.theater_name : '';
-          
-          // 确保日期字段是有效的日期对象
-          const startTime = showtime.start_time ? new Date(showtime.start_time) : new Date();
-          const endTime = showtime.end_time ? new Date(showtime.end_time) : new Date();
+          // 安全地访问嵌套属性
+          const movies = showtime.movies || {};
+          const theaters = showtime.theaters || {};
           
           return {
             id: showtime.id,
             movieId: showtime.movie_id,
             theaterId: showtime.theater_id,
-            movieTitle: showtime.movie_title,
-            moviePoster,
-            movieDuration,
-            theaterName,
-            startTime,
-            endTime,
+            movieTitle: movies.title || '',
+            moviePoster: movies.webp_poster || movies.poster || '',
+            movieDuration: movies.duration || 0,
+            theaterName: theaters.name || '',
+            startTime: new Date(showtime.start_time),
+            endTime: new Date(showtime.end_time),
             price: {
               [TicketType.NORMAL]: showtime.price_normal,
               [TicketType.STUDENT]: showtime.price_student,
@@ -139,8 +175,15 @@ export const ShowtimeService = {
           price_student,
           price_senior,
           price_child,
-          movies(title, poster, webp_poster, duration),
-          theaters(name)
+          movies!inner (
+            title, 
+            poster, 
+            webp_poster, 
+            duration
+          ),
+          theaters!inner (
+            name
+          )
         `)
         .eq('movie_id', movieId)
         .order('start_time');
@@ -152,12 +195,21 @@ export const ShowtimeService = {
       
       // 查询每个场次的座位数据
       const showtimes = await Promise.all(
-        data.map(async (showtime) => {
+        data.map(async (showtime: any) => {
           const seats = await ShowtimeService.getSeatsForShowtime(showtime.id);
+          
+          // 安全地访问嵌套属性
+          const movies = showtime.movies || {};
+          const theaters = showtime.theaters || {};
+          
           return {
             id: showtime.id,
             movieId: showtime.movie_id,
             theaterId: showtime.theater_id,
+            movieTitle: movies.title || '',
+            moviePoster: movies.webp_poster || movies.poster || '',
+            movieDuration: movies.duration || 0,
+            theaterName: theaters.name || '',
             startTime: new Date(showtime.start_time),
             endTime: new Date(showtime.end_time),
             price: {
@@ -193,8 +245,15 @@ export const ShowtimeService = {
           price_student,
           price_senior,
           price_child,
-          movies(title, poster, webp_poster, duration),
-          theaters(name)
+          movies!inner (
+            title, 
+            poster, 
+            webp_poster, 
+            duration
+          ),
+          theaters!inner (
+            name
+          )
         `)
         .eq('id', id)
         .single();
@@ -207,10 +266,18 @@ export const ShowtimeService = {
       // 获取场次座位数据
       const seats = await ShowtimeService.getSeatsForShowtime(id);
       
+      // 安全地访问嵌套属性
+      const movies = data.movies || {};
+      const theaters = data.theaters || {};
+      
       return {
         id: data.id,
         movieId: data.movie_id,
         theaterId: data.theater_id,
+        movieTitle: movies.title || '',
+        moviePoster: movies.webp_poster || movies.poster || '',
+        movieDuration: movies.duration || 0,
+        theaterName: theaters.name || '',
         startTime: new Date(data.start_time),
         endTime: new Date(data.end_time),
         price: {
@@ -253,9 +320,10 @@ export const ShowtimeService = {
   getAvailableSeats: async (showtimeId: string): Promise<Seat[]> => {
     try {
       const { data, error } = await supabase
-        .from('vw_available_seats')
+        .from('seats')
         .select('*')
         .eq('showtime_id', showtimeId)
+        .eq('is_available', true)
         .order('row_num')
         .order('column_num');
         
@@ -274,7 +342,10 @@ export const ShowtimeService = {
   // 更新座位状态
   updateSeatStatus: async (showtimeId: string, seatIds: string[], isAvailable: boolean): Promise<boolean> => {
     try {
-      const { error } = await supabase
+      // 获取带有认证的管理员客户端
+      const adminClient = await getAdminClient();
+      
+      const { error } = await adminClient
         .from('seats')
         .update({ is_available: isAvailable })
         .in('id', seatIds)
@@ -295,7 +366,10 @@ export const ShowtimeService = {
   // 添加新场次
   addShowtime: async (showtime: Omit<Showtime, 'id' | 'availableSeats'>): Promise<Showtime | null> => {
     try {
-      const { data, error } = await supabase
+      // 获取带有认证的管理员客户端
+      const adminClient = await getAdminClient();
+      
+      const { data, error } = await adminClient
         .from('showtimes')
         .insert({
           movie_id: showtime.movieId,
@@ -327,6 +401,9 @@ export const ShowtimeService = {
   // 更新场次信息
   updateShowtime: async (id: string, showtimeData: Partial<Showtime>): Promise<Showtime | null> => {
     try {
+      // 获取带有认证的管理员客户端
+      const adminClient = await getAdminClient();
+      
       // 构建更新对象，将前端命名转换为数据库命名
       const updateData: any = {};
       
@@ -341,7 +418,7 @@ export const ShowtimeService = {
         updateData.price_child = showtimeData.price[TicketType.CHILD];
       }
       
-      const { error } = await supabase
+      const { error } = await adminClient
         .from('showtimes')
         .update(updateData)
         .eq('id', id);
@@ -363,7 +440,10 @@ export const ShowtimeService = {
   // 删除场次
   deleteShowtime: async (id: string): Promise<boolean> => {
     try {
-      const { error } = await supabase
+      // 获取带有认证的管理员客户端
+      const adminClient = await getAdminClient();
+      
+      const { error } = await adminClient
         .from('showtimes')
         .delete()
         .eq('id', id);
@@ -399,8 +479,15 @@ export const ShowtimeService = {
           price_student,
           price_senior,
           price_child,
-          movies(title, poster, webp_poster, duration),
-          theaters(name)
+          movies!inner (
+            title, 
+            poster, 
+            webp_poster, 
+            duration
+          ),
+          theaters!inner (
+            name
+          )
         `)
         .gte('start_time', `${dateStr}T00:00:00`)
         .lt('start_time', `${dateStr}T23:59:59`)
@@ -413,16 +500,21 @@ export const ShowtimeService = {
       
       // 查询每个场次的座位数据
       const showtimes = await Promise.all(
-        data.map(async (showtime) => {
+        data.map(async (showtime: any) => {
           const seats = await ShowtimeService.getSeatsForShowtime(showtime.id);
+          
+          // 安全地访问嵌套属性
+          const movies = showtime.movies || {};
+          const theaters = showtime.theaters || {};
+          
           return {
             id: showtime.id,
             movieId: showtime.movie_id,
             theaterId: showtime.theater_id,
-            movieTitle: showtime.movies ? showtime.movies.title : undefined,
-            moviePoster: showtime.movies ? (showtime.movies.webp_poster || showtime.movies.poster) : undefined,
-            movieDuration: showtime.movies ? showtime.movies.duration : undefined,
-            theaterName: showtime.theaters ? showtime.theaters.name : undefined,
+            movieTitle: movies.title || '',
+            moviePoster: movies.webp_poster || movies.poster || '',
+            movieDuration: movies.duration || 0,
+            theaterName: theaters.name || '',
             startTime: new Date(showtime.start_time),
             endTime: new Date(showtime.end_time),
             price: {
@@ -439,6 +531,78 @@ export const ShowtimeService = {
       return showtimes;
     } catch (error) {
       console.error(`获取日期场次失败:`, error);
+      return [];
+    }
+  },
+  
+  // 根据日期范围获取场次
+  getShowtimesByDateRange: async (startDate: Date, endDate: Date): Promise<Showtime[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('showtimes')
+        .select(`
+          id,
+          movie_id,
+          theater_id,
+          start_time,
+          end_time,
+          price_normal,
+          price_student,
+          price_senior,
+          price_child,
+          movies!inner (
+            title, 
+            poster, 
+            webp_poster, 
+            duration
+          ),
+          theaters!inner (
+            name
+          )
+        `)
+        .gte('start_time', startDate.toISOString())
+        .lt('start_time', endDate.toISOString())
+        .order('start_time');
+        
+      if (error) {
+        console.error('获取日期范围内场次失败:', error);
+        return [];
+      }
+      
+      // 查询每个场次的座位数据
+      const showtimes = await Promise.all(
+        data.map(async (showtime: any) => {
+          // 获取场次座位数据
+          const seats = await ShowtimeService.getSeatsForShowtime(showtime.id);
+          
+          // 安全地访问嵌套属性
+          const movies = showtime.movies || {};
+          const theaters = showtime.theaters || {};
+          
+          return {
+            id: showtime.id,
+            movieId: showtime.movie_id,
+            theaterId: showtime.theater_id,
+            movieTitle: movies.title || '',
+            moviePoster: movies.webp_poster || movies.poster || '',
+            movieDuration: movies.duration || 0,
+            theaterName: theaters.name || '',
+            startTime: new Date(showtime.start_time),
+            endTime: new Date(showtime.end_time),
+            price: {
+              [TicketType.NORMAL]: showtime.price_normal,
+              [TicketType.STUDENT]: showtime.price_student,
+              [TicketType.SENIOR]: showtime.price_senior,
+              [TicketType.CHILD]: showtime.price_child
+            },
+            availableSeats: seats
+          } as Showtime;
+        })
+      );
+      
+      return showtimes;
+    } catch (error) {
+      console.error('获取日期范围内场次失败:', error);
       return [];
     }
   },
