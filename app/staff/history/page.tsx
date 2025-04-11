@@ -6,46 +6,111 @@ import { Calendar, Filter, Activity } from 'lucide-react';
 import MobileLayout from '@/app/components/layout/MobileLayout';
 import { Card } from '@/app/components/ui/Card';
 import Button from '@/app/components/ui/Button';
-import { mockStaffOperations, mockShowtimes, mockMovies, mockOrders } from '@/app/lib/mockData';
 import { StaffOperationType } from '@/app/lib/types';
+import supabase from '@/app/lib/services/supabaseClient';
+import { useAppContext } from '@/app/lib/context/AppContext';
+import { processImageUrl } from '@/app/lib/services/dataService';
+
+// 定义从数据库返回的操作记录类型
+interface DbOperation {
+  id: string;
+  operation_type: string;
+  order_id: string | null;
+  showtime_id: string | null;
+  details: any;
+  created_at: string;
+  orders: {
+    id: string;
+    status: string;
+    total_price: number;
+    showtime_id: string;
+  } | null;
+  // 其他可能的字段
+}
+
+// 定义展示用的操作记录类型
+interface EnhancedOperation {
+  id: string;
+  type: StaffOperationType;
+  orderId: string | null;
+  showtimeId: string | null;
+  createdAt: Date;
+  order: any | null;
+  showtime: any | null;
+  movie: any | null;
+  details: any;
+}
 
 export default function StaffHistoryPage() {
-  const [operations, setOperations] = useState<any[]>([]);
+  const [operations, setOperations] = useState<EnhancedOperation[]>([]);
   const [filterType, setFilterType] = useState<StaffOperationType | 'all'>('all');
   const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'all'>('all');
+  const [loading, setLoading] = useState(true);
+  const { currentUser } = useAppContext();
   
   // 加载操作记录
   useEffect(() => {
-    // 复制操作记录并添加额外信息
-    const enhancedOperations = [...mockStaffOperations]
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-      .map(operation => {
-        let orderDetails: any = null;
-        let showtimeDetails: any = null;
-        let movieDetails: any = null;
+    const fetchOperations = async () => {
+      try {
+        setLoading(true);
+        console.log('开始获取操作记录...');
         
-        if (operation.orderId) {
-          orderDetails = mockOrders.find(order => order.id === operation.orderId);
+        // 创建查询
+        let query = supabase
+          .from('vw_staff_operations')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        // 如果不是管理员，只显示当前工作人员的操作记录
+        if (currentUser?.role === 'staff') {
+          query = query.eq('staff_id', currentUser.id);
         }
         
-        if (operation.showtimeId) {
-          showtimeDetails = mockShowtimes.find(showtime => showtime.id === operation.showtimeId);
-          if (showtimeDetails) {
-            movieDetails = mockMovies.find(movie => movie.id === showtimeDetails.movieId);
-          }
+        const { data, error } = await query;
+        
+        if (error) {
+          console.error('获取操作记录失败:', error);
+          return;
         }
         
-        return {
-          ...operation,
-          order: orderDetails,
-          showtime: showtimeDetails,
-          movie: movieDetails,
-          details: operation.details ? JSON.parse(operation.details) : {}
-        };
-      });
+        console.log('成功获取操作记录数据:', data?.length || 0);
+        
+        // 处理数据
+        const enhancedOperations = (data || []).map(operation => {
+          // 处理电影和场次信息
+          return {
+            id: operation.id,
+            type: operation.operation_type as StaffOperationType,
+            orderId: operation.order_id,
+            showtimeId: operation.showtime_id,
+            createdAt: new Date(operation.created_at),
+            order: {
+              id: operation.related_order_id,
+              status: operation.order_status,
+              totalPrice: operation.total_price
+            },
+            showtime: operation.start_time ? {
+              id: operation.showtime_id,
+              start_time: operation.start_time,
+              theaterName: operation.theater_name
+            } : null,
+            movie: operation.movie_title ? {
+              title: operation.movie_title
+            } : null,
+            details: operation.details || {}
+          };
+        });
+        
+        setOperations(enhancedOperations);
+      } catch (error) {
+        console.error('获取操作记录异常:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
     
-    setOperations(enhancedOperations);
-  }, []);
+    fetchOperations();
+  }, [currentUser]);
   
   // 过滤操作记录
   const filteredOperations = operations.filter(operation => {
@@ -87,14 +152,14 @@ export default function StaffHistoryPage() {
   };
   
   // 获取操作描述
-  const getOperationDescription = (operation: any) => {
+  const getOperationDescription = (operation: EnhancedOperation) => {
     switch(operation.type) {
       case StaffOperationType.SELL:
         return `售出 ${operation.details.seats?.length || 1} 张票`;
       case StaffOperationType.CHECK:
         return `验票成功`;
       case StaffOperationType.REFUND:
-        return `退款 ¥${operation.details.refundAmount || 0}`;
+        return `退款 ¥${operation.details.refund_amount || operation.details.refundAmount || 0}`;
       case StaffOperationType.MODIFY:
         return `修改订单`;
       default:
@@ -176,11 +241,16 @@ export default function StaffHistoryPage() {
             <h2 className="font-medium">操作记录 ({filteredOperations.length})</h2>
           </div>
           
-          {filteredOperations.length > 0 ? (
+          {loading ? (
+            <div className="text-center py-16">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mx-auto mb-4"></div>
+              <p className="text-slate-500">加载操作记录中...</p>
+            </div>
+          ) : filteredOperations.length > 0 ? (
             <Card>
               <div className="divide-y divide-slate-100">
-                {filteredOperations.map((operation, index) => (
-                  <div key={index} className="p-4">
+                {filteredOperations.map((operation) => (
+                  <div key={operation.id} className="p-4">
                     <div className="flex justify-between items-start mb-2">
                       <div>
                         <span className={`inline-block px-2 py-0.5 text-xs rounded ${
@@ -204,26 +274,26 @@ export default function StaffHistoryPage() {
                       </div>
                     )}
                     
-                    {operation.showtime && (
+                    {operation.showtime && operation.showtime.start_time && (
                       <div className="text-xs text-slate-500 mt-0.5">
-                        场次: {format(operation.showtime.startTime, 'MM-dd HH:mm')}
+                        场次: {format(new Date(operation.showtime.start_time), 'MM-dd HH:mm')}
                       </div>
                     )}
                     
-                    {operation.order && (
+                    {operation.orderId && (
                       <div className="text-xs text-slate-500 mt-0.5">
-                        订单号: {operation.order.id}
+                        订单号: {operation.orderId}
                       </div>
                     )}
                     
-                    {operation.type === StaffOperationType.SELL && operation.details.paymentMethod && (
+                    {operation.type === StaffOperationType.SELL && operation.details.payment_method && (
                       <div className="mt-2 text-xs bg-slate-50 p-2 rounded">
                         <span className="text-slate-500">支付方式: </span>
                         <span className="font-medium">{
-                          operation.details.paymentMethod === 'cash' ? '现金' :
-                          operation.details.paymentMethod === 'wechat' ? '微信支付' :
-                          operation.details.paymentMethod === 'alipay' ? '支付宝' : 
-                          operation.details.paymentMethod
+                          operation.details.payment_method === 'cash' ? '现金' :
+                          operation.details.payment_method === 'wechat' ? '微信支付' :
+                          operation.details.payment_method === 'alipay' ? '支付宝' : 
+                          operation.details.payment_method
                         }</span>
                       </div>
                     )}
