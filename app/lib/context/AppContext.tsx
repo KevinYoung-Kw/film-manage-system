@@ -1,10 +1,18 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
-import { Movie, Theater, Showtime, Order, User, UserRole, TicketType, OrderStatus, StaffOperation, StaffOperationType } from '../types';
-import { MovieService, TheaterService, ShowtimeService, OrderService, UserService, StaffOperationService } from '../services/dataService';
+import { Movie, Theater, Showtime, Order, User, UserRole, TicketType, OrderStatus, StaffOperation, StaffOperationType, StaffSchedule } from '../types';
 import { AuthService } from '../services/authService';
 import { useRouter, usePathname } from 'next/navigation';
+
+// 导入Supabase服务
+import { UserService } from '../services/userService';
+import { MovieService } from '../services/movieService';
+import { TheaterService } from '../services/theaterService';
+import { ShowtimeService } from '../services/showtimeService';
+import { OrderService } from '../services/orderService';
+import { StaffService } from '../services/staffService';
+import { ScheduleService } from '../services/scheduleService';
 
 // 定义上下文状态类型
 interface AppContextState {
@@ -53,7 +61,7 @@ interface AppContextState {
   addMovie: (movie: Omit<Movie, 'id'>) => Promise<Movie | null>;
   updateMovie: (id: string, movie: Partial<Movie>) => Promise<Movie | null>;
   deleteMovie: (id: string) => Promise<boolean>;
-  addShowtime: (showtime: Omit<Showtime, 'id'>) => Promise<Showtime | null>;
+  addShowtime: (showtime: Omit<Showtime, 'id' | 'availableSeats'>) => Promise<Showtime | null>;
   updateShowtime: (id: string, showtime: Partial<Showtime>) => Promise<Showtime | null>;
   deleteShowtime: (id: string) => Promise<boolean>;
   
@@ -61,13 +69,16 @@ interface AppContextState {
   addTheater: (theater: Omit<Theater, 'id'>) => Promise<Theater | null>;
   updateTheater: (id: string, theater: Partial<Theater>) => Promise<Theater | null>;
   deleteTheater: (id: string) => Promise<boolean>;
-  updateTheaterLayout: (id: string, rows: number, columns: number) => Promise<Theater | null>;
-  getSeatLayoutTypes: (theaterId: string) => Promise<Array<Array<string>> | null>;
+  updateTheaterLayout: (theaterId: string, rows: number, columns: number) => Promise<Theater | null>;
+  getSeatLayoutTypes: (theaterId: string) => Array<Array<string>>;
   updateSeatLayoutTypes: (theaterId: string, layout: Array<Array<string>>) => Promise<boolean>;
   
   // 工作人员方法
   staffOperations: StaffOperation[];
-  getStaffOperations: (staffId?: string) => Promise<StaffOperation[]>;
+  staffSchedules: StaffSchedule[];
+  getStaffOperations: () => Promise<StaffOperation[]>;
+  getStaffSchedules: (staffId?: string) => Promise<StaffSchedule[]>;
+  getUpcomingStaffSchedules: (staffId: string) => Promise<StaffSchedule[]>;
   sellTicket: (showtimeId: string, seats: string[], ticketType: TicketType, paymentMethod: string) => Promise<Order | null>;
   checkTicket: (orderId: string) => Promise<{ success: boolean; message: string }>;
   refundTicket: (orderId: string, reason: string) => Promise<{ success: boolean; message: string }>;
@@ -111,6 +122,8 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
 
   // 添加工作人员操作数据
   const [staffOperations, setStaffOperations] = useState<StaffOperation[]>([]);
+  // 添加工作人员排班数据
+  const [staffSchedules, setStaffSchedules] = useState<StaffSchedule[]>([]);
 
   // 初始化认证
   useEffect(() => {
@@ -277,7 +290,7 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
   // 认证方法
   const login = async (email: string, password: string): Promise<User | null> => {
     try {
-      const user = await AuthService.login({ email, password });
+      const user = await AuthService.login(email, password);
       if (user) {
         setCurrentUser(user);
         return user;
@@ -291,7 +304,7 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
   
   const register = async (name: string, email: string, password: string, role?: UserRole): Promise<User | null> => {
     try {
-      const user = await AuthService.register({ name, email, password, role });
+      const user = await AuthService.register(name, email, password);
       if (user) {
         setCurrentUser(user);
         return user;
@@ -343,50 +356,124 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
     setSelectedSeats([]);
   }, []);
 
-  // 刷新数据
+  // 获取工作人员操作记录
+  const getStaffOperations = useCallback(async (): Promise<StaffOperation[]> => {
+    try {
+      const operations = await StaffService.getOperations();
+      setStaffOperations(operations);
+      return operations;
+    } catch (error) {
+      console.error('获取操作记录失败:', error);
+      return [];
+    }
+  }, []);
+
+  // 查询工作人员的排班
+  const getStaffSchedules = useCallback(async (staffId?: string): Promise<StaffSchedule[]> => {
+    try {
+      let schedules;
+      if (staffId) {
+        schedules = await ScheduleService.getSchedulesByStaffId(staffId);
+      } else {
+        schedules = await ScheduleService.getAllSchedules();
+      }
+      
+      setStaffSchedules(schedules);
+      return schedules;
+    } catch (error) {
+      console.error('获取工作人员排班失败:', error);
+      return [];
+    }
+  }, []);
+  
+  // 获取近期排班
+  const getUpcomingStaffSchedules = useCallback(async (staffId: string): Promise<StaffSchedule[]> => {
+    try {
+      const schedules = await ScheduleService.getSchedulesByStaffId(staffId);
+      // 过滤出未来的排班
+      const now = new Date();
+      const upcomingSchedules = schedules.filter(schedule => 
+        new Date(schedule.scheduleDate) >= now
+      );
+      return upcomingSchedules;
+    } catch (error) {
+      console.error('获取近期排班失败:', error);
+      return [];
+    }
+  }, []);
+
+  // 刷新数据方法
   const refreshData = useCallback(async () => {
-    isInitialized.current = false;
     setIsLoading(true);
     try {
-      const [moviesData, theatersData, showtimesData, todayShowtimesData] = await Promise.all([
+      // 先加载基础数据
+      const [moviesData, theatersData] = await Promise.all([
         MovieService.getAllMovies(),
-        TheaterService.getAllTheaters(),
-        ShowtimeService.getAllShowtimes(),
-        ShowtimeService.getTodayShowtimes()
+        TheaterService.getAllTheaters()
       ]);
       
       setMovies(moviesData);
       setTheaters(theatersData);
-      setShowtimes(showtimesData);
+      
+      // 然后加载场次数据
+      // 先获取今日场次
+      const todayShowtimesData = await ShowtimeService.getTodayShowtimes();
       setTodayShowtimes(todayShowtimesData);
       
-      // 如果用户已登录，刷新订单数据
-      if (currentUser) {
-        let userOrders;
+      // 获取全部场次（包括未来场次）
+      const allShowtimesData = await ShowtimeService.getAllShowtimes();
+      setShowtimes(allShowtimesData);
+      
+      // 根据用户角色加载订单
+      if (isAuthenticated && currentUser) {
+        let ordersData;
         if (currentUser.role === UserRole.CUSTOMER) {
-          userOrders = await OrderService.getOrdersByUserId(currentUser.id);
-        } else {
-          userOrders = await OrderService.getAllOrders();
+          ordersData = await OrderService.getOrdersByUserId(currentUser.id);
+        } else if (currentUser.role === UserRole.STAFF || currentUser.role === UserRole.ADMIN) {
+          ordersData = await OrderService.getAllOrders();
         }
-        setOrders(userOrders);
+        
+        if (ordersData) {
+          setOrders(ordersData);
+        }
       }
       
-      isInitialized.current = true;
+      // 添加日志
+      console.log('[AppContext] 数据刷新完成');
     } catch (error) {
-      console.error('加载数据失败:', error);
+      console.error('[AppContext] 刷新数据失败:', error);
     } finally {
       setIsLoading(false);
     }
-  }, [currentUser]);
+  }, [isAuthenticated, currentUser]);
 
   // 搜索电影
   const searchMovies = useCallback(async (query: string): Promise<Movie[]> => {
-    return await MovieService.getMoviesByFilter({ search: query });
+    try {
+      // 使用正确的API方法
+      const results = await MovieService.getAllMovies();
+      // 本地过滤搜索结果
+      return results.filter(movie => 
+        movie.title.toLowerCase().includes(query.toLowerCase()) ||
+        (movie.originalTitle && movie.originalTitle.toLowerCase().includes(query.toLowerCase())) ||
+        movie.director.toLowerCase().includes(query.toLowerCase()) ||
+        movie.actors.some(actor => actor.toLowerCase().includes(query.toLowerCase()))
+      );
+    } catch (error) {
+      console.error('搜索电影失败:', error);
+      return [];
+    }
   }, []);
 
-  // 获取电影的场次
+  // 获取电影场次
   const getShowtimesForMovie = useCallback(async (movieId: string): Promise<Showtime[]> => {
-    return await ShowtimeService.getShowtimesByMovieId(movieId);
+    try {
+      const results = await ShowtimeService.getShowtimesByMovieId(movieId);
+      return results;
+    } catch (error) {
+      console.error('获取电影场次失败:', error);
+      return [];
+    }
   }, []);
 
   // 创建订单
@@ -495,7 +582,7 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
   // 取消订单
   const cancelOrder = useCallback(async (orderId: string): Promise<Order | null> => {
     try {
-      const canceledOrder = await OrderService.cancelOrder(orderId);
+      const canceledOrder = await OrderService.cancelOrder(orderId, "用户取消");
       if (canceledOrder) {
         setOrders(prev => prev.map(order => order.id === orderId ? canceledOrder : order));
         
@@ -550,7 +637,9 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
     
     try {
       const newMovie = await MovieService.addMovie(movie);
-      setMovies(prev => [...prev, newMovie]);
+      if (newMovie) {
+        setMovies(prev => [...prev, newMovie]);
+      }
       return newMovie;
     } catch (error) {
       console.error('添加电影失败:', error);
@@ -598,7 +687,7 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
   }, [userRole]);
 
   // 添加场次
-  const addShowtime = useCallback(async (showtime: Omit<Showtime, 'id'>): Promise<Showtime | null> => {
+  const addShowtime = useCallback(async (showtime: Omit<Showtime, 'id' | 'availableSeats'>): Promise<Showtime | null> => {
     if (userRole !== UserRole.ADMIN) {
       console.error('只有管理员可以添加场次');
       return null;
@@ -606,15 +695,17 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
     
     try {
       const newShowtime = await ShowtimeService.addShowtime(showtime);
-      setShowtimes(prev => [...prev, newShowtime]);
-      
-      // 如果是今日场次，也更新今日场次
-      const today = new Date();
-      const showtimeDate = new Date(newShowtime.startTime);
-      if (showtimeDate.getDate() === today.getDate() &&
-          showtimeDate.getMonth() === today.getMonth() &&
-          showtimeDate.getFullYear() === today.getFullYear()) {
-        setTodayShowtimes(prev => [...prev, newShowtime]);
+      if (newShowtime) {
+        setShowtimes(prev => [...prev, newShowtime]);
+        
+        // 如果是今日场次，也更新今日场次
+        const today = new Date();
+        const showtimeDate = new Date(newShowtime.startTime);
+        if (showtimeDate.getDate() === today.getDate() &&
+            showtimeDate.getMonth() === today.getMonth() &&
+            showtimeDate.getFullYear() === today.getFullYear()) {
+          setTodayShowtimes(prev => [...prev, newShowtime]);
+        }
       }
       
       return newShowtime;
@@ -676,23 +767,6 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
     }
   }, [userRole]);
 
-  // 获取工作人员操作记录
-  const getStaffOperations = useCallback(async (staffId?: string): Promise<StaffOperation[]> => {
-    try {
-      let operations;
-      if (staffId) {
-        operations = await StaffOperationService.getOperationsByStaffId(staffId);
-      } else {
-        operations = await StaffOperationService.getAllOperations();
-      }
-      setStaffOperations(operations);
-      return operations;
-    } catch (error) {
-      console.error('获取工作人员操作记录失败:', error);
-      return [];
-    }
-  }, []);
-
   // 售票操作
   const sellTicket = useCallback(async (
     showtimeId: string, 
@@ -706,7 +780,7 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
     }
     
     try {
-      const newOrder = await StaffOperationService.sellTicket(
+      const newOrder = await StaffService.sellTicket(
         currentUser.id,
         showtimeId,
         seats,
@@ -749,7 +823,7 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
     }
     
     try {
-      const result = await StaffOperationService.checkTicket(currentUser.id, orderId);
+      const result = await StaffService.checkTicket(currentUser.id, orderId);
       return result;
     } catch (error) {
       console.error('检查票失败:', error);
@@ -765,7 +839,7 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
     }
     
     try {
-      const result = await StaffOperationService.refundTicket(currentUser.id, orderId, reason);
+      const result = await StaffService.refundTicket(currentUser.id, orderId, reason);
       return result;
     } catch (error) {
       console.error('退票失败:', error);
@@ -776,7 +850,7 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
   // 添加新影厅
   const addTheater = useCallback(async (theater: Omit<Theater, 'id'>): Promise<Theater | null> => {
     try {
-      const newTheater = await TheaterService.addTheater(theater);
+      const newTheater = await TheaterService.createTheater(theater);
       if (newTheater) {
         setTheaters(prev => [...prev, newTheater]);
       }
@@ -828,7 +902,7 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
   // 更新影厅座位布局
   const updateTheaterLayout = useCallback(async (id: string, rows: number, columns: number): Promise<Theater | null> => {
     try {
-      const updatedTheater = await TheaterService.updateTheaterLayout(id, rows, columns);
+      const updatedTheater = await TheaterService.updateSeatLayout(id, rows, columns);
       if (updatedTheater) {
         setTheaters(prev => prev.map(theater => theater.id === id ? updatedTheater : theater));
         
@@ -843,24 +917,35 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
   }, [refreshData]);
 
   // 获取影厅座位布局类型
-  const getSeatLayoutTypes = useCallback(async (theaterId: string): Promise<Array<Array<string>> | null> => {
+  const getSeatLayoutTypes = useCallback((theaterId: string): Array<Array<string>> => {
     try {
-      return await TheaterService.getSeatLayoutTypes(theaterId);
+      // 从影厅数据中获取座位布局
+      const theater = theaters.find(t => t.id === theaterId);
+      if (!theater) {
+        throw new Error('影厅不存在');
+      }
+      
+      // 假设我们有一个默认的布局
+      const defaultLayout = Array(theater.rows).fill(null).map(() => 
+        Array(theater.columns).fill('normal')
+      );
+      
+      return defaultLayout;
     } catch (error) {
       console.error('获取座位布局类型失败:', error);
-      return null;
+      return [[]];
     }
-  }, []);
+  }, [theaters]);
 
   // 更新影厅座位布局类型
   const updateSeatLayoutTypes = useCallback(async (theaterId: string, layout: Array<Array<string>>): Promise<boolean> => {
     try {
-      const success = await TheaterService.updateSeatLayoutTypes(theaterId, layout);
+      const success = await TheaterService.updateSeatLayout(theaterId, layout);
       if (success) {
         // 刷新场次数据以获取更新后的座位类型
         await refreshData();
       }
-      return success;
+      return !!success;
     } catch (error) {
       console.error('更新座位布局类型失败:', error);
       return false;
@@ -928,7 +1013,10 @@ export const AppContextProvider: React.FC<{children: ReactNode}> = ({ children }
     
     // 工作人员方法
     staffOperations,
+    staffSchedules,
     getStaffOperations,
+    getStaffSchedules,
+    getUpcomingStaffSchedules,
     sellTicket,
     checkTicket,
     refundTicket,

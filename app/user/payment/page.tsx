@@ -8,17 +8,37 @@ import MobileLayout from '@/app/components/layout/MobileLayout';
 import { Card } from '@/app/components/ui/Card';
 import Button from '@/app/components/ui/Button';
 import { CreditCard, AlertCircle, Check, X } from 'lucide-react';
-import { mockShowtimes, mockMovies, mockTheaters, defaultImages } from '@/app/lib/mockData';
+// 移除对mockData的依赖
+// import { mockShowtimes, mockMovies, mockTheaters, defaultImages } from '@/app/lib/mockData';
 import { OrderStatus, TicketType } from '@/app/lib/types';
 import { userRoutes } from '@/app/lib/utils/navigation';
-import { PaymentMethod, PaymentStatus } from '@/app/lib/services/paymentService';
 import { useAppContext } from '@/app/lib/context/AppContext';
+import { OrderService } from '@/app/lib/services/orderService';
+import supabase from '@/app/lib/services/supabaseClient';
+
+// 定义默认图片路径常量
+const DEFAULT_MOVIE_POSTER = '/images/default-poster.jpg';
+
+// 从正确的路径导入PaymentService
+import { PaymentMethod, PaymentStatus } from '@/app/lib/services/paymentService';
 
 // 创建一个使用 useSearchParams 的组件，这样可以在 Suspense 边界中使用它
 function PaymentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { refreshData, orders, selectShowtime, selectedShowtime, selectSeat, clearSelectedSeats, currentUser } = useAppContext();
+  const { 
+    refreshData, 
+    orders, 
+    movies,
+    theaters,
+    showtimes, 
+    selectShowtime, 
+    selectedShowtime, 
+    selectSeat, 
+    clearSelectedSeats, 
+    currentUser 
+  } = useAppContext();
+  
   const [isLoading, setIsLoading] = useState(false);
   const [countdown, setCountdown] = useState(15);
   const [movie, setMovie] = useState<any>(null);
@@ -31,7 +51,8 @@ function PaymentContent() {
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
   const [orderId, setOrderId] = useState<string | null>(null);
-  const [showTimeoutModal, setShowTimeoutModal] = useState(false);
+  const [isMovieStarted, setIsMovieStarted] = useState(false);
+  const [remainingMinutes, setRemainingMinutes] = useState(0);
   
   const showtimeId = searchParams.get('showtimeId');
   const seatsParam = searchParams.get('seats');
@@ -47,10 +68,13 @@ function PaymentContent() {
       return;
     }
     
+    // 确保数据已加载
+    refreshData();
+    
     const loadData = async () => {
       try {
         // 获取场次信息
-        const targetShowtime = mockShowtimes.find(s => s.id === showtimeId);
+        const targetShowtime = showtimes.find(s => s.id === showtimeId);
         if (!targetShowtime) {
           router.push(userRoutes.movieList);
           return;
@@ -60,8 +84,23 @@ function PaymentContent() {
         const now = new Date();
         const showtimeDate = new Date(targetShowtime.startTime);
         
-        if (showtimeDate < now) {
-          alert('该场次已开始，无法支付');
+        // 获取日期部分进行比较
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const showtimeDay = new Date(showtimeDate);
+        showtimeDay.setHours(0, 0, 0, 0);
+        
+        // 未来日期的场次永远不会过期
+        const isFutureDay = showtimeDay > today;
+        
+        // 计算电影是否已开场超过15分钟
+        const minutesAfterStart = showtimeDate < now ? 
+          Math.floor((now.getTime() - showtimeDate.getTime()) / (1000 * 60)) : 0;
+        
+        // 如果电影已开场超过15分钟，才视为"过期"无法支付（但未来日期的永远可支付）
+        if (!isFutureDay && showtimeDate < now && minutesAfterStart > 15) {
+          alert('该场次已开始超过15分钟，无法支付');
+          // 立即跳转到订单列表页面，不等待用户确认
           router.push(userRoutes.orders);
           return;
         }
@@ -89,11 +128,11 @@ function PaymentContent() {
         }
         
         // 获取电影信息
-        const relatedMovie = mockMovies.find(m => m.id === targetShowtime.movieId);
+        const relatedMovie = movies.find(m => m.id === targetShowtime.movieId);
         if (relatedMovie) setMovie(relatedMovie);
         
         // 获取影厅信息
-        const relatedTheater = mockTheaters.find(t => t.id === targetShowtime.theaterId);
+        const relatedTheater = theaters.find(t => t.id === targetShowtime.theaterId);
         if (relatedTheater) setTheater(relatedTheater);
         
         // 计算总价
@@ -124,7 +163,7 @@ function PaymentContent() {
     };
     
     loadData();
-  }, [showtimeId, seats, router, initialized, selectShowtime, orders]);
+  }, [showtimeId, seats, router, initialized, selectShowtime, orders, showtimes, movies, theaters, refreshData]);
   
   // 修改倒计时效果，在结束时显示弹窗
   useEffect(() => {
@@ -135,8 +174,8 @@ function PaymentContent() {
       setCountdown(prev => {
         if (prev <= 1) {
           clearInterval(timer);
-          // 倒计时结束后显示超时弹窗
-          setShowTimeoutModal(true);
+          // 倒计时结束后直接跳转，不显示弹窗
+          handleTimeoutReturn();
           return 0;
         }
         return prev - 1;
@@ -150,6 +189,8 @@ function PaymentContent() {
   
   // 处理超时后返回
   const handleTimeoutReturn = () => {
+    // 显示一个简短的提示
+    alert('支付超时，订单已取消');
     router.push(userRoutes.movieList);
   };
   
@@ -174,368 +215,451 @@ function PaymentContent() {
     }
   }, [selectedShowtime, selectedSeats, clearSelectedSeats, selectSeat]);
   
+  // 更新isMovieStarted状态
+  useEffect(() => {
+    if (!showtime) return;
+    
+    const showtimeDate = new Date(showtime.startTime);
+    const now = new Date();
+    
+    if (showtimeDate < now) {
+      setIsMovieStarted(true);
+      
+      // 计算剩余分钟数
+      const minutesAfterStart = Math.floor((now.getTime() - showtimeDate.getTime()) / (1000 * 60));
+      const remaining = Math.max(0, 15 - minutesAfterStart);
+      setRemainingMinutes(remaining);
+    }
+  }, [showtime]);
+  
   // 自定义购票流程，不依赖AppContext的createOrder
   const handlePurchase = async () => {
-    if (isLoading || !showtime || !currentUser) return;
+    if (isLoading || !showtime || !currentUser) {
+      if (!currentUser) {
+        setPaymentError('请先登录再进行支付');
+        setPaymentStatus(PaymentStatus.FAILED);
+        return;
+      }
+      return;
+    }
     
     setIsLoading(true);
     setPaymentStatus(PaymentStatus.PROCESSING);
     
     try {
-      console.log("开始自定义购票流程:", {
+      console.log("开始购票流程:", {
         showtimeId: showtime.id,
         seats: selectedSeats,
         userId: currentUser.id
       });
       
-      // 直接使用OrderService创建订单
-      // 为此我们需要导入OrderService
-      const { OrderService } = await import('@/app/lib/services/dataService');
+      // 检查localStorage中是否有session并验证有效性
+      const sessionStr = localStorage.getItem('session');
+      if (!sessionStr) {
+        throw new Error('用户未登录或会话已过期，请重新登录');
+      }
       
-      // 如果已有订单ID，则更新订单而不是创建新订单
+      // 验证session结构
+      let session;
+      try {
+        session = JSON.parse(sessionStr);
+        if (!session || !session.user_id || !session.role) {
+          localStorage.removeItem('session');
+          throw new Error('登录会话已损坏，请重新登录');
+        }
+      } catch (e) {
+        throw new Error('登录会话已损坏，请重新登录');
+      }
+      
+      // 模拟支付请求过程
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
       let targetOrderId = orderId;
       
+      // 如果没有现有订单ID，则查找对应场次的待支付订单
       if (!targetOrderId) {
-        // 准备订单数据
-        const orderData = {
-          userId: currentUser.id,
-          showtimeId: showtime.id,
-          seats: selectedSeats,
-          ticketType: TicketType.NORMAL,
-          totalPrice: selectedSeats.length * showtime.price[TicketType.NORMAL],
-          status: OrderStatus.PENDING
-        };
-        
-        console.log("准备创建订单:", orderData);
-        
-        // 创建订单
-        const newOrder = await OrderService.createOrder(orderData);
-        console.log("订单创建成功:", newOrder);
-        
-        // 设置订单ID
-        targetOrderId = newOrder.id;
-        setOrderId(targetOrderId);
+        try {
+          console.log("未找到待支付订单，创建新订单");
+          
+          if (!selectedShowtime) {
+            throw new Error('无法创建订单：未选择场次');
+          }
+          
+          if (selectedSeats.length === 0) {
+            throw new Error('无法创建订单：未选择座位');
+          }
+
+          // 生成订单号 (格式: TK + 年月日 + 随机数, 例如 TK2405104321)
+          const now = new Date();
+          const orderDate = now.getFullYear().toString().slice(-2) + 
+                            (now.getMonth() + 1).toString().padStart(2, '0') + 
+                            now.getDate().toString().padStart(2, '0');
+          const randomNum = Math.floor(1000 + Math.random() * 9000); // 4位随机数
+          const newOrderId = `TK${orderDate}${randomNum}`;
+          
+          // 计算总价
+          let totalPrice = 0;
+          selectedSeats.forEach(seatId => {
+            const seat = showtime.availableSeats.find((s: any) => s.id === seatId);
+            if (seat) {
+              // 基础票价
+              const basePrice = showtime.price[TicketType.NORMAL];
+              // 根据座位类型应用乘数
+              const multiplier = seat.type === 'vip' ? 1.2 : 
+                                seat.type === 'disabled' ? 0.6 : 1.0;
+              totalPrice += basePrice * multiplier;
+            }
+          });
+          
+          // 使用存储过程创建订单
+          console.log("调用create_order存储过程创建订单", {
+            p_user_id: currentUser.id,
+            p_showtime_id: showtime.id,
+            p_seat_ids: selectedSeats,
+            p_ticket_type: TicketType.NORMAL
+          });
+          
+          const { data: procData, error: procError } = await supabase.rpc('create_order', {
+            p_user_id: currentUser.id,
+            p_showtime_id: showtime.id,
+            p_seat_ids: selectedSeats,
+            p_ticket_type: TicketType.NORMAL,
+            p_payment_method_id: null
+          });
+          
+          if (procError || !procData || procData.length === 0 || !procData[0].success) {
+            throw new Error('创建订单失败: ' + (procError?.message || (procData && procData[0] ? procData[0].message : '未知错误')));
+          }
+          
+          // 获取创建的订单ID
+          targetOrderId = procData[0].order_id;
+          console.log("新订单已创建:", targetOrderId);
+        } catch (createError: any) {
+          console.error("创建订单失败:", createError);
+          throw new Error(`创建订单失败: ${createError.message}`);
+        }
       } else {
-        console.log("使用现有订单:", targetOrderId);
+        // 已有订单ID，只需要支付
+        try {
+          const paymentMethodId = paymentMethod === PaymentMethod.WECHAT ? "wechat" : "alipay";
+          const paidOrder = await OrderService.payOrder(targetOrderId, paymentMethodId);
+          
+          if (!paidOrder) {
+            throw new Error('支付失败：无法更新订单状态');
+          }
+          
+          console.log("订单支付成功:", paidOrder);
+        } catch (payError: any) {
+          console.error("支付失败:", payError);
+          throw new Error(`支付失败: ${payError.message}`);
+        }
       }
       
-      // 模拟支付结果
-      const paymentResult = {
-        status: PaymentStatus.SUCCESS,
-        message: '支付成功',
-        transactionId: 'txn_' + Date.now(),
-        timestamp: new Date().toISOString(),
-        orderId: targetOrderId
-      };
+      // 模拟支付成功
+      setPaymentStatus(PaymentStatus.COMPLETED);
       
-      // 设置支付状态
-      setPaymentStatus(paymentResult.status);
+      // 提前设置状态，避免页面闪烁
+      refreshData();
       
-      // 使用OrderService更新订单状态为已支付
-      if (paymentResult.status === PaymentStatus.SUCCESS && targetOrderId) {
-        await OrderService.updateOrderStatus(targetOrderId, OrderStatus.PAID);
-        console.log("订单状态已更新为已支付");
-        
-        // 刷新上下文中的数据
-        await refreshData();
-        
-        // 立即跳转到成功页面，使用正确的订单ID
+      // 确保订单状态已更新为已支付
+      try {
+        if (targetOrderId) {
+          await OrderService.updateOrderStatus(targetOrderId, OrderStatus.PAID);
+        }
+      } catch (error) {
+        console.error("更新订单状态失败:", error);
+        // 继续执行，因为触发器可能已经更新了状态
+      }
+      
+      // 模拟支付成功后的跳转延迟
+      setTimeout(() => {
+        if (!targetOrderId) {
+          // 如果没有订单ID，则跳转到订单列表页面
+          router.push(userRoutes.orders);
+          return;
+        }
         router.push(userRoutes.orderSuccess(targetOrderId));
-      }
-      
-      console.log("支付流程完成");
-      
-    } catch (error) {
-      console.error("支付流程错误:", error);
+      }, 1000);
+    } catch (error: any) {
+      console.error('支付失败:', error);
+      setPaymentError(error.message || '支付失败，请稍后重试');
       setPaymentStatus(PaymentStatus.FAILED);
-      setPaymentError('支付处理过程中发生错误');
     } finally {
       setIsLoading(false);
     }
   };
   
-  // 订单详情卡片
+  // 计算座位类型
+  const getSeatTypeLabel = (type: string): string => {
+    switch (type) {
+      case 'vip': return 'VIP座';
+      case 'couple': return '情侣座';
+      case 'disabled': return '无障碍座';
+      default: return '普通座';
+    }
+  };
+  
+  const getSeatTypeColor = (type: string): string => {
+    switch (type) {
+      case 'vip': return 'bg-amber-100 text-amber-800';
+      case 'couple': return 'bg-pink-100 text-pink-800';
+      case 'disabled': return 'bg-blue-100 text-blue-800';
+      default: return 'bg-slate-100 text-slate-800';
+    }
+  };
+  
   const renderOrderSummary = () => {
-    if (!showtime || !movie) return null;
+    if (!movie || !showtime || !theater) return null;
     
     return (
-      <Card className="p-4 mb-4">
-        <h2 className="text-lg font-semibold mb-2">订单详情</h2>
-        
-        <div className="flex mb-4">
-          <div className="w-24 h-36 rounded overflow-hidden mr-4">
-            <Image
-              src={movie.poster || defaultImages.moviePoster}
-              alt={movie.title}
-              width={96}
-              height={144}
-              className="object-cover"
-            />
-          </div>
-          
-          <div>
-            <h3 className="font-semibold">{movie.title}</h3>
-            <p className="text-sm text-gray-600 mb-1">
-              {format(new Date(showtime.startTime), 'MM月dd日 HH:mm')}
-            </p>
-            <p className="text-sm text-gray-600 mb-1">
-              {theater?.name}
-            </p>
-            <div className="mt-2">
-              <p className="text-sm">
-                <span className="font-medium">座位：</span>
-                {selectedSeats.map((seat) => (
-                  <span 
-                    key={seat}
-                    className={`inline-block px-1.5 py-0.5 mr-1 mb-1 text-xs rounded
-                      ${getSeatTypeColor(getSeatType(seat, showtime))}
-                    `}
-                  >
-                    {getSeatLabel(seat, showtime)}
-                  </span>
-                ))}
-              </p>
+      <div className="mb-4">
+        <Card className="p-4 mb-2">
+          <div className="flex mb-4">
+            <div className="relative h-24 w-16 rounded overflow-hidden mr-3">
+              <Image 
+                src={movie.poster || DEFAULT_MOVIE_POSTER} 
+                alt={movie.title}
+                fill
+                className="object-cover"
+                unoptimized
+              />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold">{movie.title}</h3>
+              <div className="text-sm text-slate-500">
+                {movie.duration}分钟 | {movie.genre.join('/')}
+              </div>
+              <div className="mt-2 text-xs text-slate-500">
+                {format(new Date(showtime.startTime), 'yyyy年MM月dd日 HH:mm')}
+              </div>
+              <div className="text-xs text-slate-500">
+                {theater.name}
+              </div>
             </div>
           </div>
-        </div>
+          
+          <div className="border-t pt-3">
+            <h4 className="text-sm font-medium mb-2">已选座位</h4>
+            <div className="flex flex-wrap gap-2">
+              {selectedSeats.map(seatId => {
+                const seat = showtime.availableSeats.find((s: any) => s.id === seatId);
+                if (!seat) return null;
+                
+                const row = seat.row;
+                const col = seat.column;
+                const seatLabel = `${row}排${col}座`;
+                const seatType = seat.type;
+                const typeLabel = getSeatTypeLabel(seatType);
+                const typeColor = getSeatTypeColor(seatType);
+                
+                return (
+                  <div key={seatId} className="flex flex-col items-center">
+                    <span className="text-sm mb-1">{seatLabel}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${typeColor}`}>
+                      {typeLabel}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </Card>
         
-        <div className="border-t border-gray-200 pt-3">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-gray-600">影票单价</span>
-            <span>¥{showtime.price[TicketType.NORMAL]}</span>
+        <Card className="p-4">
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-slate-600">总价</span>
+            <span className="text-xl font-bold">¥{totalPrice.toFixed(2)}</span>
           </div>
-          
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-gray-600">座位数量</span>
-            <span>{selectedSeats.length}个</span>
-          </div>
-          
-          <div className="flex justify-between items-center pt-2 border-t border-gray-200 font-semibold">
-            <span>总计金额</span>
-            <span className="text-lg text-red-600">¥{totalPrice.toFixed(2)}</span>
-          </div>
-        </div>
-      </Card>
+        </Card>
+      </div>
     );
   };
   
   // 获取座位标签
   const getSeatLabel = (seatId: string, currentShowtime: any): string => {
     const seat = currentShowtime.availableSeats.find((s: any) => s.id === seatId);
-    if (!seat) return seatId;
-    
-    return `${seat.row}排${seat.column}号`;
+    if (!seat) return '未知座位';
+    return `${seat.row}排${seat.column}座`;
   };
   
   // 获取座位类型
   const getSeatType = (seatId: string, currentShowtime: any): string => {
     const seat = currentShowtime.availableSeats.find((s: any) => s.id === seatId);
-    return seat ? seat.type : 'normal';
+    if (!seat) return 'normal';
+    return seat.type;
   };
   
-  // 获取座位类型标签
-  const getSeatTypeLabel = (type: string): string => {
-    switch (type) {
-      case 'vip': return 'VIP座';
-      case 'disabled': return '无障碍座';
-      default: return '普通座';
-    }
-  };
-  
-  // 获取座位类型颜色样式
-  const getSeatTypeColor = (type: string): string => {
-    switch (type) {
-      case 'vip':
-        return 'bg-amber-100 text-amber-800';
-      case 'disabled':
-        return 'bg-blue-100 text-blue-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-  
-  // 支付方式选择
   const renderPaymentMethods = () => {
     return (
-      <Card className="p-4 mb-4">
-        <h2 className="text-lg font-semibold mb-3">选择支付方式</h2>
-        <div className="space-y-2">
-          <div
-            className={`flex items-center p-3 border rounded cursor-pointer
-              ${paymentMethod === PaymentMethod.WECHAT 
-                ? 'border-green-500 bg-green-50' 
-                : 'border-gray-200'}
-            `}
+      <div className="mb-4">
+        <Card className="p-4">
+          <h3 className="text-base font-semibold mb-3">选择支付方式</h3>
+          
+          <div 
+            className={`flex items-center p-3 rounded-lg border ${
+              paymentMethod === PaymentMethod.WECHAT 
+                ? 'border-indigo-500 bg-indigo-50' 
+                : 'border-slate-200'
+            } mb-2 cursor-pointer`}
             onClick={() => setPaymentMethod(PaymentMethod.WECHAT)}
           >
-            <div className="w-6 h-6 mr-3 flex items-center justify-center">
-              <Image
-                src="/images/wechat-pay.png"
-                alt="微信支付"
-                width={24}
-                height={24}
-              />
+            <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center mr-3">
+              <div className="text-white font-bold">微</div>
             </div>
             <div className="flex-1">
-              <p className="font-medium">微信支付</p>
+              <div className="font-medium">微信支付</div>
+              <div className="text-xs text-slate-500">使用微信扫码支付</div>
             </div>
             {paymentMethod === PaymentMethod.WECHAT && (
-              <Check className="w-5 h-5 text-green-500" />
+              <div className="w-5 h-5 bg-indigo-500 rounded-full flex items-center justify-center">
+                <Check className="h-3 w-3 text-white" />
+              </div>
             )}
           </div>
           
-          <div
-            className={`flex items-center p-3 border rounded cursor-pointer
-              ${paymentMethod === PaymentMethod.ALIPAY 
-                ? 'border-blue-500 bg-blue-50' 
-                : 'border-gray-200'}
-            `}
+          <div 
+            className={`flex items-center p-3 rounded-lg border ${
+              paymentMethod === PaymentMethod.ALIPAY 
+                ? 'border-indigo-500 bg-indigo-50' 
+                : 'border-slate-200'
+            } mb-2 cursor-pointer`}
             onClick={() => setPaymentMethod(PaymentMethod.ALIPAY)}
           >
-            <div className="w-6 h-6 mr-3 flex items-center justify-center">
-              <Image
-                src="/images/alipay.png"
-                alt="支付宝"
-                width={24}
-                height={24}
-              />
+            <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center mr-3">
+              <div className="text-white font-bold">支</div>
             </div>
             <div className="flex-1">
-              <p className="font-medium">支付宝</p>
+              <div className="font-medium">支付宝</div>
+              <div className="text-xs text-slate-500">使用支付宝扫码支付</div>
             </div>
             {paymentMethod === PaymentMethod.ALIPAY && (
-              <Check className="w-5 h-5 text-blue-500" />
+              <div className="w-5 h-5 bg-indigo-500 rounded-full flex items-center justify-center">
+                <Check className="h-3 w-3 text-white" />
+              </div>
             )}
           </div>
-        </div>
-      </Card>
+        </Card>
+      </div>
     );
   };
   
-  // 渲染超时弹窗
-  const renderTimeoutModal = () => {
-    if (!showTimeoutModal) return null;
+  const renderPaymentStatus = () => {
+    if (paymentStatus === PaymentStatus.PENDING) {
+      return null;
+    }
     
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-        <div className="bg-white rounded-lg w-full max-w-sm p-6">
-          <div className="mb-4 text-center">
-            <AlertCircle className="w-16 h-16 text-amber-500 mx-auto mb-2" />
-            <h3 className="text-lg font-semibold">支付超时</h3>
-            <p className="text-gray-600 mt-1">
-              订单已超时，请重新选择座位下单
-            </p>
+    if (paymentStatus === PaymentStatus.PROCESSING) {
+      return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-80 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mx-auto mb-4"></div>
+            <h3 className="text-lg font-semibold mb-2">处理中</h3>
+            <p className="text-slate-600 mb-4">正在处理您的支付，请稍候...</p>
           </div>
-          
-          <div className="flex justify-center">
-            <Button
-              onClick={handleTimeoutReturn}
-              className="w-full bg-indigo-600 hover:bg-indigo-700"
+        </div>
+      );
+    }
+    
+    if (paymentStatus === PaymentStatus.COMPLETED) {
+      return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-80 text-center">
+            <div className="bg-green-100 rounded-full p-3 mx-auto mb-4 w-16 h-16 flex items-center justify-center">
+              <Check className="h-8 w-8 text-green-500" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2">支付成功</h3>
+            <p className="text-slate-600 mb-4">您的订单已支付成功</p>
+            <p className="text-sm text-slate-500">正在为您跳转...</p>
+          </div>
+        </div>
+      );
+    }
+    
+    if (paymentStatus === PaymentStatus.FAILED) {
+      return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-80 text-center">
+            <div className="bg-red-100 rounded-full p-3 mx-auto mb-4 w-16 h-16 flex items-center justify-center">
+              <X className="h-8 w-8 text-red-500" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2">支付失败</h3>
+            <p className="text-slate-600 mb-4">{paymentError || '支付过程中出现错误'}</p>
+            <Button 
+              className="w-full" 
+              onClick={() => setPaymentStatus(PaymentStatus.PENDING)}
             >
-              返回首页
+              重新支付
             </Button>
           </div>
         </div>
-      </div>
-    );
-  };
-  
-  // 渲染结果提示
-  const renderPaymentStatus = () => {
-    if (paymentStatus === PaymentStatus.PENDING) return null;
-    
-    let statusIcon, statusText, statusColor;
-    
-    switch (paymentStatus) {
-      case PaymentStatus.PROCESSING:
-        statusIcon = (
-          <div className="animate-spin w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto mb-2"></div>
-        );
-        statusText = "支付处理中...";
-        statusColor = "text-indigo-600";
-        break;
-      case PaymentStatus.SUCCESS:
-        statusIcon = <Check className="w-12 h-12 text-green-500 mx-auto mb-2" />;
-        statusText = "支付成功";
-        statusColor = "text-green-600";
-        break;
-      case PaymentStatus.FAILED:
-        statusIcon = <X className="w-12 h-12 text-red-500 mx-auto mb-2" />;
-        statusText = "支付失败";
-        statusColor = "text-red-600";
-        break;
+      );
     }
     
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-        <div className="bg-white rounded-lg w-full max-w-sm p-6 text-center">
-          {statusIcon}
-          <h3 className={`text-lg font-semibold ${statusColor}`}>{statusText}</h3>
-          
-          {paymentStatus === PaymentStatus.FAILED && (
-            <>
-              <p className="text-gray-600 mt-1 mb-4">
-                {paymentError || '支付过程中发生错误，请稍后再试'}
-              </p>
-              <Button
-                onClick={() => setPaymentStatus(PaymentStatus.PENDING)}
-                className="w-full bg-indigo-600 hover:bg-indigo-700"
-              >
-                重新支付
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
-    );
+    return null;
   };
   
   return (
-    <MobileLayout title="订单支付" showBackButton>
-      <div className="px-4 py-6">
-        {countdown > 0 && (
-          <div className="bg-amber-50 border border-amber-200 rounded-md p-3 mb-4 flex items-center">
-            <AlertCircle className="w-5 h-5 text-amber-500 mr-2 flex-shrink-0" />
-            <p className="text-sm text-amber-800">
-              请在 <span className="font-bold">{countdown}</span> 秒内完成支付，超时订单将自动取消
+    <div className="px-4 pb-8">
+      {/* 提示：电影已开场 */}
+      {isMovieStarted && remainingMinutes > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-md p-3 mb-4 flex items-start">
+          <AlertCircle className="text-amber-500 h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
+          <div>
+            <h3 className="font-medium text-amber-800">电影已开场</h3>
+            <p className="text-sm text-amber-700">
+              电影已开场 {15 - remainingMinutes} 分钟，您还有 {remainingMinutes} 分钟购票时间
             </p>
           </div>
-        )}
-        
+        </div>
+      )}
+      
+      {/* 内容容器 */}
+      <div>
+        {/* 订单摘要 */}
         {renderOrderSummary()}
+        
+        {/* 支付方式 */}
         {renderPaymentMethods()}
         
-        <Button
-          onClick={handlePurchase}
-          disabled={isLoading || paymentStatus !== PaymentStatus.PENDING}
-          className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-base"
-        >
-          {isLoading ? '处理中...' : `支付 ¥${totalPrice.toFixed(2)}`}
-        </Button>
-        
-        {renderTimeoutModal()}
-        {renderPaymentStatus()}
+        {/* 支付按钮和倒计时 - 放在内容下方 */}
+        <div className="mt-6 mb-16 bg-white p-4 rounded-lg shadow-md">
+          <div className="text-xs text-slate-500 mb-3 text-center">
+            请在 <span className="text-red-500 font-semibold">{countdown}</span> 秒内完成支付，超时订单将自动取消
+          </div>
+          <Button
+            onClick={handlePurchase}
+            disabled={isLoading || !movie || !showtime || !theater || selectedSeats.length === 0}
+            className="w-full py-4 text-lg font-medium relative"
+          >
+            <CreditCard className="h-5 w-5 mr-2" />
+            <span>支付 ¥{totalPrice.toFixed(2)}</span>
+          </Button>
+        </div>
       </div>
-    </MobileLayout>
+      
+      {/* 支付状态弹窗 */}
+      {renderPaymentStatus()}
+    </div>
   );
 }
 
-// 加载中的占位组件
 function PaymentLoading() {
   return (
-    <MobileLayout title="订单支付" showBackButton>
-      <div className="px-4 py-6 flex flex-col items-center justify-center min-h-[70vh]">
-        <div className="animate-spin w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full"></div>
-        <p className="mt-4 text-gray-600">加载中...</p>
+    <div className="p-4 flex justify-center items-center min-h-[60vh]">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mx-auto"></div>
+        <p className="mt-4 text-slate-500">正在加载支付页面...</p>
       </div>
-    </MobileLayout>
+    </div>
   );
 }
 
 export default function PaymentPage() {
   return (
-    <Suspense fallback={<PaymentLoading />}>
-      <PaymentContent />
-    </Suspense>
+    <MobileLayout title="在线支付" showBackButton>
+      <Suspense fallback={<PaymentLoading />}>
+        <PaymentContent />
+      </Suspense>
+    </MobileLayout>
   );
 } 

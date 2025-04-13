@@ -8,59 +8,122 @@ import QRCode from 'react-qr-code';
 import { format, differenceInMinutes } from 'date-fns';
 import { ChevronLeft, MapPin, Clock, Calendar, Users, TicketIcon, ArrowLeft, Check, AlertTriangle, X } from 'lucide-react';
 import { useAppContext } from '@/app/lib/context/AppContext';
-import { Order, TicketStatus, OrderStatus } from '@/app/lib/types';
-import { mockMovies, mockShowtimes, mockTheaters } from '@/app/lib/mockData';
+import { Order, TicketStatus, OrderStatus, Movie, Showtime, Theater } from '@/app/lib/types';
 import MobileLayout from '@/app/components/layout/MobileLayout';
 import Button from '@/app/components/ui/Button';
-import { defaultImages } from '@/app/lib/mockData';
+import { MovieService } from '@/app/lib/services/movieService';
+import { ShowtimeService } from '@/app/lib/services/showtimeService';
+import { TheaterService } from '@/app/lib/services/theaterService';
+
+// 定义默认图片路径常量
+const DEFAULT_MOVIE_POSTER = '/images/default-poster.jpg';
 
 export default function OrderDetailPage() {
   const params = useParams();
   const orderId = params.id as string;
-  const { orders, refreshData } = useAppContext();
+  const { orders, refreshData, movies, theaters, showtimes } = useAppContext();
   const [order, setOrder] = useState<Order | null>(null);
+  const [movie, setMovie] = useState<Movie | null>(null);
+  const [showtime, setShowtime] = useState<Showtime | null>(null);
+  const [theater, setTheater] = useState<Theater | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   useEffect(() => {
     refreshData();
   }, [refreshData]);
   
   useEffect(() => {
-    const foundOrder = orders.find(o => o.id === orderId);
-    if (foundOrder) {
-      setOrder(foundOrder);
+    const fetchOrderData = async () => {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        // 从上下文获取订单信息
+        const foundOrder = orders.find(o => o.id === orderId);
+        if (foundOrder) {
+          setOrder(foundOrder);
+          
+          // 从上下文获取关联数据
+          let showtimeData = showtimes.find(s => s.id === foundOrder.showtimeId);
+          
+          // 如果上下文中没有找到，尝试从API获取
+          if (!showtimeData) {
+            const fetchedShowtime = await ShowtimeService.getShowtimeById(foundOrder.showtimeId);
+            if (!fetchedShowtime) {
+              throw new Error('未找到场次信息');
+            }
+            showtimeData = fetchedShowtime;
+          }
+          
+          setShowtime(showtimeData);
+          
+          // 获取电影信息
+          let movieData = movies.find(m => m.id === showtimeData.movieId);
+          if (!movieData) {
+            const fetchedMovie = await MovieService.getMovieById(showtimeData.movieId);
+            if (!fetchedMovie) {
+              throw new Error('未找到电影信息');
+            }
+            movieData = fetchedMovie;
+          }
+          
+          setMovie(movieData);
+          
+          // 获取影厅信息
+          let theaterData = theaters.find(t => t.id === showtimeData.theaterId);
+          if (!theaterData) {
+            const fetchedTheater = await TheaterService.getTheaterById(showtimeData.theaterId);
+            if (!fetchedTheater) {
+              throw new Error('未找到影厅信息');
+            }
+            theaterData = fetchedTheater;
+          }
+          
+          setTheater(theaterData);
+        } else {
+          throw new Error('未找到订单信息');
+        }
+      } catch (err: any) {
+        console.error('加载订单详情失败:', err);
+        setError(err.message || '加载数据失败');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    if (orderId) {
+      fetchOrderData();
     }
-  }, [orderId, orders]);
+  }, [orderId, orders, movies, theaters, showtimes]);
   
-  if (!order) {
+  if (loading) {
     return (
-      <MobileLayout title="订单详情">
-        <div className="p-4">
-          <p className="text-center py-8">正在加载订单...</p>
+      <MobileLayout title="票券详情" showBackButton>
+        <div className="p-4 flex justify-center items-center min-h-[60vh]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mx-auto"></div>
+            <p className="mt-4 text-slate-500">正在加载订单...</p>
+          </div>
         </div>
       </MobileLayout>
     );
   }
   
-  // 获取相关的电影场次信息
-  const showtime = mockShowtimes.find(s => s.id === order.showtimeId);
-  if (!showtime) {
+  if (error || !order || !showtime || !movie || !theater) {
     return (
-      <MobileLayout title="订单详情">
-        <div className="p-4">
-          <p className="text-center py-8">未找到场次信息</p>
-        </div>
-      </MobileLayout>
-    );
-  }
-  
-  const movie = mockMovies.find(m => m.id === showtime.movieId);
-  const theater = mockTheaters.find(t => t.id === showtime.theaterId);
-  
-  if (!movie || !theater) {
-    return (
-      <MobileLayout title="订单详情">
-        <div className="p-4">
-          <p className="text-center py-8">未找到相关信息</p>
+      <MobileLayout title="票券详情" showBackButton>
+        <div className="p-4 flex flex-col items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <div className="bg-red-50 rounded-full p-4 mb-4 mx-auto w-16 h-16 flex items-center justify-center">
+              <X className="h-8 w-8 text-red-500" />
+            </div>
+            <h2 className="text-lg font-semibold mb-2">出错了</h2>
+            <p className="text-slate-500 mb-6">{error || "未找到订单相关数据"}</p>
+            <Link href="/user/orders">
+              <Button>返回订单列表</Button>
+            </Link>
+          </div>
         </div>
       </MobileLayout>
     );
@@ -224,7 +287,7 @@ export default function OrderDetailPage() {
           <div className="flex">
             <div className="relative h-24 w-16 rounded overflow-hidden">
               <Image 
-                src={movie.webpPoster || movie.poster || defaultImages.moviePoster} 
+                src={movie.webpPoster || movie.poster || DEFAULT_MOVIE_POSTER} 
                 alt={movie.title}
                 fill
                 className="object-cover"
@@ -262,14 +325,13 @@ export default function OrderDetailPage() {
               <MapPin className="h-4 w-4 mr-2 text-slate-400 mt-0.5" />
               <div>
                 <div className="font-medium">{theater.name}</div>
-                <div className="text-sm text-slate-500">地址信息</div>
               </div>
             </div>
             
             <div className="flex items-start">
               <TicketIcon className="h-4 w-4 mr-2 text-slate-400 mt-0.5" />
               <div>
-                <div className="font-medium">影厅信息</div>
+                <div className="font-medium">座位信息</div>
                 <div className="text-sm text-slate-500">
                   {order.seats.map(seat => {
                     const seatParts = seat.split('-');

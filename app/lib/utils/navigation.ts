@@ -13,6 +13,7 @@ export const userRoutes = {
   // 用户中心
   profile: '/user/profile',
   orders: '/user/orders',
+  orderDetail: (id: string) => `/user/orders/${id}`,
   favorites: '/user/favorites',
   settings: '/user/settings',
   

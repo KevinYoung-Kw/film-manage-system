@@ -5,17 +5,21 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 import { format, isToday, isTomorrow } from 'date-fns';
-import { Clock, Users, Star, Calendar, ChevronRight } from 'lucide-react';
+import { Clock, Users, Star, Calendar, ChevronRight, AlertCircle } from 'lucide-react';
 import MobileLayout from '@/app/components/layout/MobileLayout';
 import { Card } from '@/app/components/ui/Card';
-import { mockMovies, mockShowtimes, mockTheaters, defaultImages } from '@/app/lib/mockData';
+import Button from '@/app/components/ui/Button';
+import { defaultImages } from '@/app/lib/mockData';
 import { Movie, Showtime, Theater } from '@/app/lib/types';
 import { staffRoutes } from '@/app/lib/utils/navigation';
+import { MovieService } from '@/app/lib/services/movieService';
+import { ShowtimeService } from '@/app/lib/services/showtimeService';
+import { TheaterService } from '@/app/lib/services/theaterService';
 
 // 扩展Showtime类型，添加theater属性
-type ShowtimeWithTheater = Showtime & {
+interface ShowtimeWithTheater extends Showtime {
   theater?: Theater;
-};
+}
 
 export default function StaffMovieDetailPage() {
   const router = useRouter();
@@ -23,47 +27,75 @@ export default function StaffMovieDetailPage() {
   const movieId = typeof params.id === 'string' ? params.id : Array.isArray(params.id) ? params.id[0] : '';
   const [movie, setMovie] = useState<Movie | null>(null);
   const [todayShowtimes, setTodayShowtimes] = useState<ShowtimeWithTheater[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   // 获取电影和今日场次
   useEffect(() => {
-    // 获取电影详情
-    const foundMovie = mockMovies.find(m => m.id === movieId);
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // 获取电影详情
+        const movieData = await MovieService.getMovieById(movieId);
+        
+        if (!movieData) {
+          setError('无法找到电影信息');
+          return;
+        }
+        
+        setMovie(movieData);
+        
+        // 获取今天的场次
+        const now = new Date();
+        const todayShowtimesData = await ShowtimeService.getShowtimesByDate(now);
+        
+        // 找出当天该电影的场次
+        const showtimesForMovie = todayShowtimesData.filter(showtime => 
+          showtime.movieId === movieId && 
+          showtime.startTime > now
+        );
+        
+        // 如果场次已经包含影厅信息，直接使用
+        const showtimesWithTheater: ShowtimeWithTheater[] = [];
+        
+        // 为每个场次获取影厅信息（如果需要）
+        for (const showtime of showtimesForMovie) {
+          let theater: Theater | undefined = undefined;
+          
+          // 如果场次没有影厅信息，获取影厅详情
+          if (showtime.theaterId) {
+            const theaterData = await TheaterService.getTheaterById(showtime.theaterId);
+            if (theaterData) {
+              theater = theaterData;
+            }
+          }
+          
+          showtimesWithTheater.push({
+            ...showtime,
+            theater
+          });
+        }
+        
+        // 按时间排序
+        const sortedShowtimes = showtimesWithTheater.sort((a, b) => 
+          a.startTime.getTime() - b.startTime.getTime()
+        );
+        
+        setTodayShowtimes(sortedShowtimes);
+      } catch (err) {
+        console.error('获取电影和场次数据失败:', err);
+        setError('加载数据失败，请稍后重试');
+      } finally {
+        setLoading(false);
+      }
+    };
     
-    if (!foundMovie) {
-      router.push(staffRoutes.sell);
-      return;
+    if (movieId) {
+      fetchData();
     }
-    
-    setMovie(foundMovie);
-    
-    // 获取今天的场次
-    const now = new Date();
-    const endOfDay = new Date();
-    endOfDay.setHours(23, 59, 59, 999);
-    
-    // 找出当天该电影的场次
-    const showtimesForMovie = mockShowtimes.filter(showtime => 
-      showtime.movieId === movieId && 
-      showtime.startTime > now && 
-      showtime.startTime < endOfDay
-    );
-    
-    // 添加影厅信息
-    const showtimesWithTheater = showtimesForMovie.map(showtime => {
-      const theater = mockTheaters.find(t => t.id === showtime.theaterId);
-      return {
-        ...showtime,
-        theater
-      };
-    });
-    
-    // 按时间排序
-    const sortedShowtimes = showtimesWithTheater.sort((a, b) => 
-      new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
-    );
-    
-    setTodayShowtimes(sortedShowtimes);
-  }, [movieId, router]);
+  }, [movieId]);
   
   // 格式化电影时长
   const formatDuration = (minutes: number) => {
@@ -98,8 +130,33 @@ export default function StaffMovieDetailPage() {
     return `¥${minPrice}-${maxPrice}`;
   };
   
-  if (!movie) {
-    return <div className="flex justify-center items-center min-h-screen">加载中...</div>;
+  if (loading) {
+    return (
+      <MobileLayout title="电影详情" userRole="staff" showBackButton>
+        <div className="flex flex-col items-center justify-center min-h-screen">
+          <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="mt-4 text-slate-500">加载中...</p>
+        </div>
+      </MobileLayout>
+    );
+  }
+  
+  if (error || !movie) {
+    return (
+      <MobileLayout title="电影详情" userRole="staff" showBackButton>
+        <div className="flex flex-col items-center justify-center min-h-screen">
+          <AlertCircle className="h-16 w-16 text-red-500 mb-4" />
+          <p className="text-red-500 font-medium">{error || '加载失败'}</p>
+          <Button 
+            variant="outline"
+            className="mt-4"
+            onClick={() => router.push(staffRoutes.sell)}
+          >
+            返回
+          </Button>
+        </div>
+      </MobileLayout>
+    );
   }
   
   return (
@@ -130,7 +187,7 @@ export default function StaffMovieDetailPage() {
                 <Clock className="h-3 w-3 inline mr-1" /> {formatDuration(movie.duration)}
               </div>
               <div className="text-sm text-indigo-200 mb-1">
-                <Calendar className="h-3 w-3 inline mr-1" /> {format(new Date(movie.releaseDate), 'yyyy年MM月dd日')}
+                <Calendar className="h-3 w-3 inline mr-1" /> {format(movie.releaseDate, 'yyyy年MM月dd日')}
               </div>
               <div className="text-sm text-indigo-200 mb-1">
                 <Users className="h-3 w-3 inline mr-1" /> {movie.director}
@@ -189,7 +246,7 @@ export default function StaffMovieDetailPage() {
                     <div className="p-3">
                       <div className="flex justify-between items-center">
                         <div className="text-lg font-medium">
-                          {format(new Date(showtime.startTime), 'HH:mm')}
+                          {format(showtime.startTime, 'HH:mm')}
                         </div>
                         <div className="text-indigo-600 font-medium">
                           {getPriceRange(showtime)}
@@ -197,7 +254,7 @@ export default function StaffMovieDetailPage() {
                       </div>
                       <div className="flex justify-between items-center mt-2">
                         <div className="text-sm text-slate-500">
-                          {showtime.theater?.name || '未知影厅'} 
+                          {showtime.theaterName || showtime.theater?.name || '未知影厅'} 
                           {showtime.theater?.equipment && showtime.theater.equipment.length > 0 && (
                             <span className="ml-1">({showtime.theater.equipment.join('/')})</span>
                           )}

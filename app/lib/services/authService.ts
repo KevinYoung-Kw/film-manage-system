@@ -1,209 +1,292 @@
+import supabase, { signInWithCredentials } from './supabaseClient';
 import { User, UserRole } from '../types';
-import { mockUsers } from '../mockData';
-import { createClient } from '@supabase/supabase-js';
+import bcrypt from 'bcryptjs';
 
-// 为未来的Supabase整合准备
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-// 创建Supabase客户端（如果环境变量存在）
-const supabase = supabaseUrl && supabaseKey
-  ? createClient(supabaseUrl, supabaseKey)
-  : null;
-
-interface LoginCredentials {
-  email: string;
-  password: string;
-}
-
-interface RegisterData {
-  email: string;
-  password: string;
-  name: string;
-  role?: UserRole;
-}
-
-// 保存登录会话（在本地存储或cookies中）
-const saveSession = (user: User) => {
-  localStorage.setItem('currentUser', JSON.stringify(user));
-};
-
-// 清除登录会话
-const clearSession = () => {
-  localStorage.removeItem('currentUser');
-};
-
-// 从本地存储获取会话
-const getSession = (): User | null => {
-  if (typeof window === 'undefined') return null;
-  
-  const userJson = localStorage.getItem('currentUser');
-  if (!userJson) return null;
-  
-  try {
-    return JSON.parse(userJson);
-  } catch (e) {
-    return null;
-  }
-};
-
+/**
+ * 认证服务 - 处理登录、注册、退出等身份验证功能
+ */
 export const AuthService = {
-  // 登录方法
-  login: async (credentials: LoginCredentials): Promise<User | null> => {
-    // 如果Supabase已配置，使用Supabase登录
-    if (supabase) {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: credentials.email,
-        password: credentials.password,
+  /**
+   * 用户登录
+   * @param email 邮箱
+   * @param password 密码
+   * @returns 登录用户信息
+   */
+  login: async (email: string, password: string): Promise<User | null> => {
+    try {
+      console.log(`尝试登录: ${email}`);
+      
+      // 查询用户表获取用户信息
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .maybeSingle();
+
+      if (error) {
+        console.error('登录查询失败:', error);
+        throw new Error(`用户不存在或查询失败: ${error.message}`);
+      }
+
+      if (!user) {
+        console.error('没有找到用户');
+        throw new Error('用户名或密码错误');
+      }
+
+      console.log(`找到用户: ${user.id}, 角色: ${user.role}`);
+      
+      // 使用bcrypt比较密码
+      console.log('尝试验证密码：', {
+        inputPassword: password,
+        dbPasswordHash: user.password_hash
       });
+      const passwordMatches = await bcrypt.compare(password, user.password_hash);
+      console.log('密码验证结果：', passwordMatches);
+      if (!passwordMatches) {
+        console.error('密码不匹配');
+        throw new Error('用户名或密码错误');
+      }
+
+      console.log('密码验证成功');
       
-      if (error) throw new Error(error.message);
+      // 使用Supabase Auth服务创建会话
+      console.log('尝试创建Supabase会话...');
+      const sessionCreated = await signInWithCredentials(user.email, user.role, user.id);
       
-      if (data.user) {
-        // 获取附加的用户信息
-        const { data: userData } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', data.user.id)
-          .single();
-          
-        if (userData) {
-          const user: User = {
-            id: data.user.id,
-            email: data.user.email!,
-            name: userData.name,
-            role: userData.role,
-            createdAt: new Date(userData.created_at),
-          };
-          
-          saveSession(user);
-          return user;
-        }
+      if (!sessionCreated) {
+        console.error('创建Supabase会话失败');
+        throw new Error('登录失败：无法创建会话');
       }
       
-      return null;
+      console.log('创建Supabase会话成功');
+
+      return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role as UserRole,
+        createdAt: new Date(user.created_at)
+      };
+    } catch (error) {
+      console.error('登录失败:', error);
+      throw error;
     }
-    
-    // 如果没有配置Supabase，使用模拟数据进行登录
-    // 在真实环境中应该对密码进行哈希处理，这里为了简化使用明文
-    const user = mockUsers.find(u => 
-      u.email.toLowerCase() === credentials.email.toLowerCase()
-    );
-    
-    // 模拟数据中的密码固定为123456
-    const isPasswordValid = credentials.password === '123456';
-    
-    if (user && isPasswordValid) {
-      saveSession(user);
-      return user;
-    }
-    
-    return null;
   },
-  
-  // 注册方法
-  register: async (data: RegisterData): Promise<User | null> => {
-    // 如果Supabase已配置，使用Supabase注册
-    if (supabase) {
-      // 创建用户身份
-      const { data: authData, error } = await supabase.auth.signUp({
-        email: data.email,
-        password: data.password,
+
+  /**
+   * 用户注册
+   * @param name 用户名
+   * @param email 邮箱
+   * @param password 密码
+   * @returns 新注册的用户信息
+   */
+  register: async (name: string, email: string, password: string): Promise<User | null> => {
+    try {
+      // 检查邮箱是否已被使用
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+
+      if (existingUser) {
+        throw new Error('该邮箱已被注册');
+      }
+
+      // 使用bcrypt对密码进行哈希
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+
+      // 创建新用户
+      const { data: user, error } = await supabase
+        .from('users')
+        .insert([
+          {
+            name,
+            email,
+            password_hash: hashedPassword, // 存储哈希后的密码
+            role: 'customer' // 默认角色是普通用户
+          }
+        ])
+        .select()
+        .maybeSingle();
+
+      if (error || !user) {
+        console.error('注册失败:', error);
+        throw new Error('注册失败: ' + (error?.message || '未知错误'));
+      }
+
+      // 使用Supabase Auth服务创建会话
+      console.log('尝试为新注册用户创建Supabase会话...');
+      
+      // 1. 首先在Auth服务中创建用户
+      const { error: signUpError } = await supabase.auth.signUp({
+        email: email,
+        password: 'film-system-token-' + user.id.substring(0, 8),
+        options: {
+          data: {
+            role: user.role,
+            user_db_id: user.id,
+            name: name
+          }
+        }
       });
       
-      if (error) throw new Error(error.message);
-      
-      if (authData.user) {
-        // 创建附加的用户信息
-        const { data: userData, error: profileError } = await supabase
-          .from('users')
-          .insert([{
-            id: authData.user.id,
-            email: data.email,
-            name: data.name,
-            role: data.role || UserRole.CUSTOMER,
-            created_at: new Date().toISOString()
-          }])
-          .select()
-          .single();
-          
-        if (profileError) throw new Error(profileError.message);
-        
-        if (userData) {
-          const user: User = {
-            id: authData.user.id,
-            email: data.email,
-            name: data.name,
-            role: data.role || UserRole.CUSTOMER,
-            createdAt: new Date(),
-          };
-          
-          saveSession(user);
-          return user;
-        }
+      if (signUpError) {
+        console.warn('在Auth服务中创建用户失败，但数据库用户已创建:', signUpError);
       }
       
-      return null;
+      // 2. 使用signInWithCredentials登录
+      const sessionCreated = await signInWithCredentials(user.email, user.role, user.id);
+      
+      if (!sessionCreated) {
+        console.error('创建Supabase会话失败');
+        throw new Error('注册成功但登录失败：无法创建会话');
+      }
+      
+      console.log('创建Supabase会话成功');
+
+      return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role as UserRole,
+        createdAt: new Date(user.created_at)
+      };
+    } catch (error) {
+      console.error('注册失败:', error);
+      throw error;
     }
-    
-    // 如果没有配置Supabase，模拟注册
-    const newUser: User = {
-      id: `user${Date.now()}`,
-      email: data.email,
-      name: data.name,
-      role: data.role || UserRole.CUSTOMER,
-      createdAt: new Date(),
-    };
-    
-    // 在真实应用中会将新用户添加到数据库
-    // 这里仅返回模拟的用户对象
-    saveSession(newUser);
-    return newUser;
   },
-  
-  // 登出方法
+
+  /**
+   * 退出登录
+   */
   logout: async (): Promise<void> => {
-    if (supabase) {
-      await supabase.auth.signOut();
+    // 清除本地会话信息
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('session');
     }
     
-    clearSession();
+    // 清除Supabase会话
+    await supabase.auth.signOut();
   },
-  
-  // 获取当前用户
-  getCurrentUser: (): User | null => {
-    return getSession();
+
+  /**
+   * 获取当前登录用户信息
+   * @returns 当前用户信息
+   */
+  getCurrentUser: async (): Promise<User | null> => {
+    try {
+      // 从本地存储获取会话信息
+      let session;
+      if (typeof window !== 'undefined') {
+        const sessionStr = localStorage.getItem('session');
+        if (sessionStr) {
+          session = JSON.parse(sessionStr);
+        }
+      }
+
+      if (!session || !session.user_id) {
+        return null;
+      }
+
+      // 获取用户信息
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', session.user_id)
+        .maybeSingle();
+
+      if (error || !user) {
+        console.error('获取当前用户失败:', error);
+        AuthService.logout(); // 如果获取用户失败，清除会话
+        return null;
+      }
+
+      return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role as UserRole,
+        createdAt: new Date(user.created_at)
+      };
+    } catch (error) {
+      console.error('获取当前用户失败:', error);
+      return null;
+    }
   },
-  
-  // 初始化会话
+
+  /**
+   * 初始化会话（用于AppContext初始化）
+   * @returns 当前用户信息
+   */
   initSession: async (): Promise<User | null> => {
-    if (supabase) {
-      const { data } = await supabase.auth.getSession();
-      
-      if (data.session) {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', data.session.user.id)
-          .single();
-          
-        if (userData) {
-          const user: User = {
-            id: data.session.user.id,
-            email: data.session.user.email!,
-            name: userData.name,
-            role: userData.role,
-            createdAt: new Date(userData.created_at),
-          };
-          
-          saveSession(user);
-          return user;
+    try {
+      // 首先检查本地存储中是否有会话信息
+      let session = null;
+      if (typeof window !== 'undefined') {
+        const sessionStr = localStorage.getItem('session');
+        if (sessionStr) {
+          try {
+            session = JSON.parse(sessionStr);
+          } catch (e) {
+            console.error('解析会话信息失败:', e);
+          }
+        }
+      }
+
+      // 如果有本地会话，尝试刷新令牌
+      if (session?.user_id && session?.email && session?.role) {
+        // 检查当前Supabase会话状态
+        const { data: { session: supabaseSession } } = await supabase.auth.getSession();
+        
+        // 如果没有有效的Supabase会话，尝试重新创建
+        if (!supabaseSession) {
+          console.log('本地会话存在但Supabase会话已过期，尝试刷新...');
+          await signInWithCredentials(session.email, session.role, session.user_id);
         }
       }
       
+      // 最后获取当前用户信息
+      return await AuthService.getCurrentUser();
+    } catch (error) {
+      console.error('初始化会话失败:', error);
       return null;
     }
-    
-    return getSession();
+  },
+
+  /**
+   * 测试数据库连接和用户查询
+   * @returns 数据库连接和用户查询结果
+   */
+  testUserQuery: async (email: string): Promise<any> => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, email, role, name, created_at')
+        .eq('email', email);
+      
+      if (error) {
+        return { 
+          success: false, 
+          message: '查询失败', 
+          error 
+        };
+      }
+      
+      return { 
+        success: true, 
+        message: '查询成功', 
+        data,
+        count: data?.length || 0
+      };
+    } catch (error) {
+      return { 
+        success: false, 
+        message: '执行查询时出错', 
+        error 
+      };
+    }
   }
-}; 
+};

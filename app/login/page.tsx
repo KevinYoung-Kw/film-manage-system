@@ -4,9 +4,10 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Eye, EyeOff, Mail, Lock, UserRound, Shield, Film } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, UserRound, Shield, Film, AlertCircle } from 'lucide-react';
 import { useAppContext } from '@/app/lib/context/AppContext';
 import { UserRole } from '@/app/lib/types';
+import { AuthService } from '@/app/lib/services/authService';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -18,6 +19,8 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [detailedError, setDetailedError] = useState<any>(null);
+  const [showDetailedError, setShowDetailedError] = useState(false);
   
   // 已登录用户自动重定向到相应主页
   useEffect(() => {
@@ -54,17 +57,40 @@ export default function LoginPage() {
     
     setIsLoading(true);
     setError('');
+    setDetailedError(null);
+    setShowDetailedError(false);
     
     try {
+      // 首先测试查询
+      const testResult = await AuthService.testUserQuery(email);
+      console.log('用户查询测试结果:', testResult);
+      
+      if (!testResult.success || testResult.count === 0) {
+        setDetailedError({
+          message: '用户查询测试失败',
+          details: testResult
+        });
+        throw new Error('用户不存在或查询失败');
+      }
+
       const user = await login(email, password);
       
       if (user) {
         redirectToRolePage(user.role);
       } else {
         setError('邮箱或密码错误');
+        setDetailedError({
+          message: '登录失败，但没有抛出错误',
+          email: email
+        });
       }
-    } catch (err) {
-      setError('登录失败，请稍后重试');
+    } catch (err: any) {
+      setError(err.message || '登录失败，请稍后重试');
+      setDetailedError({
+        message: '登录过程中发生错误',
+        error: err.toString(),
+        stack: err.stack
+      });
       console.error('登录错误:', err);
     } finally {
       setIsLoading(false);
@@ -73,9 +99,9 @@ export default function LoginPage() {
   
   // 快速登录选项
   const demoAccounts = [
-    { email: 'admin@example.com', password: '123456', role: UserRole.ADMIN, icon: Shield, label: '管理员', color: 'indigo' },
-    { email: 'staff1@example.com', password: '123456', role: UserRole.STAFF, icon: Film, label: '售票员', color: 'green' },
-    { email: 'customer1@example.com', password: '123456', role: UserRole.CUSTOMER, icon: UserRound, label: '观众', color: 'blue' }
+    { email: 'admin@example.com', password: 'admin123', role: UserRole.ADMIN, icon: Shield, label: '管理员', color: 'indigo' },
+    { email: 'staff1@example.com', password: 'staff123', role: UserRole.STAFF, icon: Film, label: '售票员', color: 'green' },
+    { email: 'customer1@example.com', password: 'customer123', role: UserRole.CUSTOMER, icon: UserRound, label: '观众', color: 'blue' }
   ];
   
   // 使用演示账户登录
@@ -83,19 +109,49 @@ export default function LoginPage() {
     setEmail(account.email);
     setPassword(account.password);
     
+    console.log('尝试使用演示账户登录:', {
+      email: account.email,
+      password: account.password
+    });
+    
     setIsLoading(true);
     setError('');
+    setDetailedError(null);
+    setShowDetailedError(false);
     
     try {
+      // 首先测试查询
+      const testResult = await AuthService.testUserQuery(account.email);
+      console.log('演示账户查询测试结果:', testResult);
+      
+      if (!testResult.success || testResult.count === 0) {
+        setDetailedError({
+          message: '演示账户查询测试失败',
+          details: testResult
+        });
+        throw new Error('演示账户不存在或查询失败');
+      }
+
+      console.log('开始调用登录函数...');
       const user = await login(account.email, account.password);
+      console.log('登录函数返回结果:', user);
       
       if (user) {
         redirectToRolePage(user.role);
       } else {
         setError('演示账户登录失败');
+        setDetailedError({
+          message: '演示账户登录失败，但没有抛出错误',
+          email: account.email
+        });
       }
-    } catch (err) {
-      setError('登录失败，请稍后重试');
+    } catch (err: any) {
+      setError(err.message || '登录失败，请稍后重试');
+      setDetailedError({
+        message: '演示账户登录过程中发生错误',
+        error: err.toString(),
+        stack: err.stack
+      });
       console.error('演示账户登录错误:', err);
     } finally {
       setIsLoading(false);
@@ -176,7 +232,26 @@ export default function LoginPage() {
           {/* 错误提示 */}
           {error && (
             <div className="p-2 text-sm text-red-600 bg-red-50 rounded border border-red-100">
-              {error}
+              <div className="flex items-start">
+                <AlertCircle size={16} className="mr-2 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p>{error}</p>
+                  {detailedError && (
+                    <button 
+                      onClick={() => setShowDetailedError(!showDetailedError)}
+                      className="text-xs underline mt-1"
+                    >
+                      {showDetailedError ? '隐藏详情' : '显示详情'}
+                    </button>
+                  )}
+                </div>
+              </div>
+              
+              {showDetailedError && detailedError && (
+                <pre className="mt-2 p-2 bg-white text-xs overflow-auto max-h-40 rounded border border-red-200">
+                  {JSON.stringify(detailedError, null, 2)}
+                </pre>
+              )}
             </div>
           )}
           

@@ -11,7 +11,8 @@ import Button from '@/app/components/ui/Button';
 import TabGroup from '@/app/components/ui/TabGroup';
 import { defaultImages } from '@/app/lib/mockData';
 import { TicketType, Movie } from '@/app/lib/types';
-import { ShowtimeService, TheaterService } from '@/app/lib/services/dataService';
+import { ShowtimeService } from '@/app/lib/services/showtimeService';
+import { TheaterService } from '@/app/lib/services/theaterService';
 import { userRoutes } from '@/app/lib/utils/navigation';
 import { useRef } from 'react';
 
@@ -24,12 +25,16 @@ export default function MovieShowtimesClient({ movie }: MovieShowtimesClientProp
   const [theaters, setTheaters] = useState<Record<string, any>>({});
   const [isLoading, setIsLoading] = useState(true);
   
-  // 使用ref跟踪组件是否已挂载
+  // 使用ref跟踪组件是否已挂载和当前电影ID
   const isMounted = useRef(false);
+  const prevMovieId = useRef<string | null>(null);
   
   useEffect(() => {
-    // 避免重复加载数据
-    if (isMounted.current) return;
+    // 如果电影ID没有变化且已经加载过数据，则跳过重新加载
+    if (isMounted.current && prevMovieId.current === movie.id) return;
+    
+    // 更新当前电影ID
+    prevMovieId.current = movie.id;
     isMounted.current = true;
     
     async function loadData() {
@@ -86,7 +91,7 @@ export default function MovieShowtimesClient({ movie }: MovieShowtimesClientProp
     }
     
     loadData();
-  }, [movie.id]);
+  }, [movie.id]); // 保留依赖于movie.id，但使用ref处理避免重复加载
   
   const formatDate = (date: Date) => {
     const today = new Date();
@@ -177,7 +182,7 @@ export default function MovieShowtimesClient({ movie }: MovieShowtimesClientProp
         <div className="flex">
           <div className="relative h-24 w-16 rounded overflow-hidden">
             <Image
-              src={movie.poster || defaultImages.moviePoster}
+              src={movie.webpPoster || movie.poster || defaultImages.webpMoviePoster || defaultImages.moviePoster}
               alt={movie.title}
               fill
               className="object-cover"

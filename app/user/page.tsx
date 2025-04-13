@@ -1,122 +1,196 @@
-import React from 'react';
+'use client';
+
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import MobileLayout from '@/app/components/layout/MobileLayout';
 import { Card, CardContent } from '@/app/components/ui/Card';
 import MovieCard from '@/app/components/MovieCard';
-import { mockMovies, mockBanners, siteInfo } from '@/app/lib/mockData';
-import { defaultImages } from '@/app/lib/mockData';
 import { Film, Calendar, Ticket, ChevronRight } from 'lucide-react';
-import { MovieStatus } from '@/app/lib/types';
+import { MovieStatus, Movie } from '@/app/lib/types';
+import { useAppContext } from '@/app/lib/context/AppContext';
+import { processImageUrl } from '@/app/lib/services/dataService';
+import supabase from '@/app/lib/services/supabaseClient';
+
+// 定义默认图片路径
+const DEFAULT_BANNER = '/images/default-banner.webp';
 
 export default function UserHome() {
-  // 选择一部热门电影作为Banner
-  const featuredBanner = mockBanners[0]; // 使用轮播图数据的第一项
+  const { movies, refreshData, isLoading } = useAppContext();
+  const [banners, setBanners] = useState<any[]>([]);
+  const [featuredBanner, setFeaturedBanner] = useState<any>(null);
+  const [popularMovies, setPopularMovies] = useState<Movie[]>([]);
+  const [upcomingMovies, setUpcomingMovies] = useState<Movie[]>([]);
+  const [siteInfo, setSiteInfo] = useState<any>({
+    name: '电影票务系统',
+    address: '中国某省某市某区某街道123号',
+    phone: '400-123-4567'
+  });
   
-  // 热门电影列表
-  const popularMovies = mockMovies.slice(0, 4);
+  useEffect(() => {
+    // 刷新数据
+    refreshData();
+    
+    // 获取轮播图数据
+    const fetchBanners = async () => {
+      try {
+        const { data } = await supabase
+          .from('banners')
+          .select('*')
+          .eq('is_active', true)
+          .order('order_num');
+          
+        if (data && data.length > 0) {
+          setBanners(data);
+          setFeaturedBanner(data[0]);
+        }
+      } catch (error) {
+        console.error('获取轮播图失败:', error);
+      }
+    };
+    
+    // 获取站点信息
+    const fetchSiteInfo = async () => {
+      try {
+        const { data } = await supabase
+          .from('site_info')
+          .select('*')
+          .single();
+          
+        if (data) {
+          setSiteInfo(data);
+        }
+      } catch (error) {
+        console.error('获取站点信息失败:', error);
+      }
+    };
+    
+    fetchBanners();
+    fetchSiteInfo();
+  }, [refreshData]);
   
-  // 即将上映的电影
-  const upcomingMovies = mockMovies.filter(movie => movie.status === MovieStatus.COMING_SOON).slice(0, 4);
-
+  useEffect(() => {
+    if (movies.length > 0) {
+      // 热门电影列表
+      const popular = movies
+        .filter(movie => movie.status === MovieStatus.SHOWING)
+        .sort((a, b) => b.rating - a.rating)
+        .slice(0, 4);
+      setPopularMovies(popular);
+      
+      // 即将上映的电影
+      const upcoming = movies
+        .filter(movie => movie.status === MovieStatus.COMING_SOON)
+        .slice(0, 4);
+      setUpcomingMovies(upcoming);
+    }
+  }, [movies]);
+  
+  // 获取有效的banner图片URL
+  const bannerImageUrl = featuredBanner 
+    ? processImageUrl(featuredBanner.imageUrl) 
+    : DEFAULT_BANNER;
+  
   return (
-    <MobileLayout title="我的影院">
-      {/* Banner区域 */}
-      <div className="relative w-full h-64 mb-6">
-        <Image
-          src={featuredBanner.webpImageUrl || featuredBanner.imageUrl || defaultImages.webpBanner || defaultImages.banner}
-          alt="Banner"
-          fill
-          className="object-cover brightness-75"
-          priority
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex flex-col justify-end p-4">
-          <h1 className="text-white text-2xl font-bold">{featuredBanner.title}</h1>
-          <p className="text-white/80 text-sm line-clamp-2 mt-1">
-            {featuredBanner.description}
-          </p>
-          <Link
-            href={featuredBanner.link}
-            className="bg-indigo-600 text-white text-center py-2 px-4 rounded-md mt-3 inline-block"
-          >
-            立即购票
-          </Link>
-        </div>
-      </div>
-
-      {/* 快捷操作 */}
-      <div className="grid grid-cols-3 gap-4 mb-6 px-4">
-        <Card className="p-3 text-center">
-          <CardContent>
-            <Link href="/user/movies" className="flex flex-col items-center">
-              <div className="h-12 w-12 rounded-full bg-indigo-100 flex items-center justify-center mb-2">
-                <Film className="h-6 w-6 text-indigo-600" />
-              </div>
-              <span className="text-sm">电影</span>
-            </Link>
-          </CardContent>
-        </Card>
-        <Card className="p-3 text-center">
-          <CardContent>
-            <Link href="/user/showtimes" className="flex flex-col items-center">
-              <div className="h-12 w-12 rounded-full bg-amber-100 flex items-center justify-center mb-2">
-                <Calendar className="h-6 w-6 text-amber-600" />
-              </div>
-              <span className="text-sm">场次</span>
-            </Link>
-          </CardContent>
-        </Card>
-        <Card className="p-3 text-center">
-          <CardContent>
-            <Link href="/user/orders" className="flex flex-col items-center">
-              <div className="h-12 w-12 rounded-full bg-emerald-100 flex items-center justify-center mb-2">
-                <Ticket className="h-6 w-6 text-emerald-600" />
-              </div>
-              <span className="text-sm">订单</span>
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* 热门电影 */}
-      <div className="mb-6">
-        <div className="flex justify-between items-center px-4 mb-3">
-          <h2 className="text-lg font-semibold">热门电影</h2>
-          <Link href="/user/movies" className="text-indigo-600 text-sm flex items-center">
-            查看全部 <ChevronRight className="h-4 w-4" />
-          </Link>
-        </div>
-        <div className="overflow-x-auto pb-4">
-          <div className="flex px-4 gap-4" style={{ minWidth: 'max-content' }}>
-            {popularMovies.map(movie => (
-              <div key={movie.id} style={{ width: '150px' }}>
-                <MovieCard movie={movie} />
-              </div>
-            ))}
+    <MobileLayout title="首页" showBackButton={false}>
+      {/* 热门banner */}
+      <div className="relative w-full h-48 bg-slate-200 overflow-hidden">
+        {featuredBanner ? (
+          <>
+            <Image
+              src={bannerImageUrl}
+              alt={featuredBanner.title || "电影banner"}
+              fill
+              className="object-cover"
+              priority
+              unoptimized
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-4">
+              <h2 className="text-white text-xl font-bold">{featuredBanner.title}</h2>
+              <p className="text-white/80 text-sm">{featuredBanner.description}</p>
+            </div>
+          </>
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <p className="text-slate-500">加载中...</p>
           </div>
-        </div>
+        )}
       </div>
-
-      {/* 即将上映 */}
-      <div className="mb-6">
-        <div className="flex justify-between items-center px-4 mb-3">
-          <h2 className="text-lg font-semibold">即将上映</h2>
-          <Link href="/user/upcoming" className="text-indigo-600 text-sm flex items-center">
-            查看全部 <ChevronRight className="h-4 w-4" />
+      
+      {/* 快捷操作 */}
+      <div className="grid grid-cols-3 gap-2 p-4">
+        <Link href="/user/movies">
+          <Card className="flex flex-col items-center py-4 hover:bg-slate-50">
+            <Film className="h-6 w-6 text-indigo-500 mb-2" />
+            <span className="text-xs text-slate-700">电影</span>
+          </Card>
+        </Link>
+        <Link href="/user/showtimes">
+          <Card className="flex flex-col items-center py-4 hover:bg-slate-50">
+            <Calendar className="h-6 w-6 text-indigo-500 mb-2" />
+            <span className="text-xs text-slate-700">场次</span>
+          </Card>
+        </Link>
+        <Link href="/user/orders">
+          <Card className="flex flex-col items-center py-4 hover:bg-slate-50">
+            <Ticket className="h-6 w-6 text-indigo-500 mb-2" />
+            <span className="text-xs text-slate-700">订单</span>
+          </Card>
+        </Link>
+      </div>
+      
+      {/* 热门电影 */}
+      <div className="px-4 mb-4">
+        <div className="flex justify-between items-center mb-2">
+          <h2 className="text-lg font-semibold">热门电影</h2>
+          <Link href="/user/movies" className="text-xs text-indigo-600 flex items-center">
+            查看全部 <ChevronRight className="h-3 w-3 ml-0.5" />
           </Link>
         </div>
-        <div className="px-4 space-y-3">
-          {upcomingMovies.map(movie => (
-            <MovieCard key={movie.id} movie={movie} variant="compact" />
-          ))}
+        <div className="grid grid-cols-2 gap-3">
+          {isLoading ? (
+            <div className="col-span-2 py-10 text-center text-slate-500">加载中...</div>
+          ) : popularMovies.length > 0 ? (
+            popularMovies.map(movie => (
+              <MovieCard key={movie.id} movie={movie} />
+            ))
+          ) : (
+            <div className="col-span-2 py-10 text-center text-slate-500">暂无热门电影</div>
+          )}
         </div>
       </div>
-
-      {/* 底部信息 */}
-      <div className="text-center mt-8 mb-4 px-4 text-slate-400 text-xs">
-        <p>{siteInfo.copyright}</p>
-        <p className="mt-1">影院地址: {siteInfo.address}</p>
-        <p className="mt-1">营业时间: {siteInfo.workingHours}</p>
+      
+      {/* 即将上映 */}
+      <div className="px-4 mb-4">
+        <div className="flex justify-between items-center mb-2">
+          <h2 className="text-lg font-semibold">即将上映</h2>
+          <Link href="/user/movies" className="text-xs text-indigo-600 flex items-center">
+            查看全部 <ChevronRight className="h-3 w-3 ml-0.5" />
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {isLoading ? (
+            <div className="col-span-2 py-10 text-center text-slate-500">加载中...</div>
+          ) : upcomingMovies.length > 0 ? (
+            upcomingMovies.map(movie => (
+              <MovieCard key={movie.id} movie={movie} />
+            ))
+          ) : (
+            <div className="col-span-2 py-10 text-center text-slate-500">暂无即将上映电影</div>
+          )}
+        </div>
+      </div>
+      
+      {/* 影院信息 */}
+      <div className="px-4 mb-8">
+        <Card>
+          <CardContent className="p-4">
+            <h3 className="font-semibold mb-2">影院信息</h3>
+            <p className="text-sm text-slate-600 mb-1">{siteInfo.name}</p>
+            <p className="text-xs text-slate-500 mb-1">{siteInfo.address}</p>
+            <p className="text-xs text-slate-500">电话: {siteInfo.phone}</p>
+          </CardContent>
+        </Card>
       </div>
     </MobileLayout>
   );

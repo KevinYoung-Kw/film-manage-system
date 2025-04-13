@@ -8,43 +8,63 @@ import { Film, Calendar, Search } from 'lucide-react';
 import MobileLayout from '@/app/components/layout/MobileLayout';
 import { Card } from '@/app/components/ui/Card';
 import Button from '@/app/components/ui/Button';
-import { mockMovies, mockShowtimes, defaultImages } from '@/app/lib/mockData';
-import { MovieStatus } from '@/app/lib/types';
+import { defaultImages } from '@/app/lib/mockData';
+import { MovieStatus, Movie, Showtime } from '@/app/lib/types';
 import { staffRoutes } from '@/app/lib/utils/navigation';
+import { MovieService } from '@/app/lib/services/movieService';
+import { ShowtimeService } from '@/app/lib/services/showtimeService';
 
 export default function StaffSellPage() {
   const [movies, setMovies] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   // 获取当天有场次的所有电影
   useEffect(() => {
-    const now = new Date();
-    const endOfDay = new Date();
-    endOfDay.setHours(23, 59, 59, 999);
+    const fetchMoviesWithShowtimes = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // 获取所有正在上映的电影
+        const allMovies = await MovieService.getNowShowingMovies();
+        
+        // 获取当天的场次
+        const now = new Date();
+        const endOfDay = new Date();
+        endOfDay.setHours(23, 59, 59, 999);
+        
+        const todayShowtimes = await ShowtimeService.getShowtimesByDate(now);
+        
+        // 找出当天有场次的电影
+        const movieIds = [...new Set(todayShowtimes.map(showtime => showtime.movieId))];
+        
+        // 过滤并组织电影数据
+        const moviesWithShowtimes = allMovies
+          .filter(movie => movieIds.includes(movie.id))
+          .map(movie => {
+            const movieShowtimes = todayShowtimes.filter(s => s.movieId === movie.id);
+            
+            return {
+              ...movie,
+              showtimesCount: movieShowtimes.length,
+              earliestShowtime: movieShowtimes.reduce((earliest, current) => 
+                earliest.startTime < current.startTime ? earliest : current
+              , movieShowtimes[0])
+            };
+          });
+        
+        setMovies(moviesWithShowtimes);
+      } catch (error) {
+        console.error('加载电影和场次数据失败:', error);
+        setError('无法获取电影和场次信息');
+      } finally {
+        setLoading(false);
+      }
+    };
     
-    // 找出当天有场次的电影
-    const availableShowtimes = mockShowtimes.filter(showtime => 
-      showtime.startTime > now && showtime.startTime < endOfDay
-    );
-    
-    // 提取电影ID并去重
-    const movieIds = [...new Set(availableShowtimes.map(showtime => showtime.movieId))];
-    
-    // 获取电影详情
-    const moviesWithShowtimes = movieIds.map(movieId => {
-      const movie = mockMovies.find(m => m.id === movieId);
-      const showtimes = availableShowtimes.filter(s => s.movieId === movieId);
-      
-      return {
-        ...movie,
-        showtimesCount: showtimes.length,
-        earliestShowtime: showtimes.reduce((earliest, current) => 
-          earliest.startTime < current.startTime ? earliest : current
-        , showtimes[0])
-      };
-    });
-    
-    setMovies(moviesWithShowtimes);
+    fetchMoviesWithShowtimes();
   }, []);
   
   // 过滤电影
@@ -75,7 +95,22 @@ export default function StaffSellPage() {
           今日可售电影
         </h2>
         
-        {filteredMovies.length > 0 ? (
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-16">
+            <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+            <p className="mt-4 text-slate-500">加载中...</p>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-16">
+            <p className="text-red-500">{error}</p>
+            <Button 
+              onClick={() => window.location.reload()}
+              className="mt-4"
+            >
+              重试
+            </Button>
+          </div>
+        ) : filteredMovies.length > 0 ? (
           <div className="space-y-4">
             {filteredMovies.map((movie) => (
               <Link
@@ -86,7 +121,7 @@ export default function StaffSellPage() {
                   <div className="p-3 flex space-x-3">
                     <div className="relative h-32 w-24 flex-shrink-0 rounded overflow-hidden">
                       <Image
-                        src={movie.poster || defaultImages.moviePoster}
+                        src={movie.webpPoster || movie.poster || defaultImages.webpMoviePoster || defaultImages.moviePoster}
                         alt={movie.title}
                         fill
                         className="object-cover"

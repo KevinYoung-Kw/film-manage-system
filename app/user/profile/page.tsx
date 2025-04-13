@@ -10,31 +10,81 @@ import {
 import MobileLayout from '@/app/components/layout/MobileLayout';
 import { Card } from '@/app/components/ui/Card';
 import Button from '@/app/components/ui/Button';
-import { mockUsers, siteInfo } from '@/app/lib/mockData';
 import { UserRole } from '@/app/lib/types';
 import { useAppContext } from '@/app/lib/context/AppContext';
+import supabase from '@/app/lib/services/supabaseClient';
+
+// 网站信息接口
+interface SiteInfo {
+  name: string;
+  address: string;
+  phone: string;
+  email: string;
+  copyright: string;
+  workingHours: string;
+}
 
 export default function ProfilePage() {
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const { logout } = useAppContext();
+  const { currentUser, logout, isAuthenticated, isLoading } = useAppContext();
+  const [siteInfo, setSiteInfo] = useState<SiteInfo>({
+    name: '电影票务系统',
+    address: '中国某省某市某区某街道123号',
+    phone: '400-123-4567',
+    email: 'support@example.com',
+    copyright: '© 2025 电影票务系统',
+    workingHours: '09:00 - 22:00'
+  });
   
   useEffect(() => {
-    // 从本地存储获取用户信息，或使用模拟用户
-    const storedUser = localStorage.getItem('currentUser');
-    if (storedUser) {
-      setCurrentUser(JSON.parse(storedUser));
-    } else {
-      // 如果没有登录，使用默认用户
-      setCurrentUser(mockUsers[2]); // 使用第一个普通用户
-    }
+    // 获取网站信息
+    const fetchSiteInfo = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('site_info')
+          .select('*')
+          .single();
+          
+        if (error && error.code !== 'PGRST116') {
+          console.error('获取网站信息失败:', error);
+          return;
+        }
+        
+        if (data) {
+          setSiteInfo(data);
+        }
+      } catch (error) {
+        console.error('获取数据出错:', error);
+      }
+    };
+    
+    fetchSiteInfo();
   }, []);
   
-  if (!currentUser) {
+  // 处理加载状态
+  if (isLoading || !currentUser) {
     return (
       <MobileLayout title="个人中心">
         <div className="flex flex-col items-center justify-center h-96">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500" />
           <p className="mt-4 text-slate-500">加载中...</p>
+        </div>
+      </MobileLayout>
+    );
+  }
+  
+  // 如果未登录，显示登录提示
+  if (!isAuthenticated) {
+    return (
+      <MobileLayout title="个人中心">
+        <div className="flex flex-col items-center justify-center h-96 px-4">
+          <div className="text-center">
+            <User className="h-16 w-16 text-slate-300 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">您尚未登录</h2>
+            <p className="text-slate-500 mb-6">请登录后查看个人中心</p>
+            <Link href="/login">
+              <Button className="w-full">登录账号</Button>
+            </Link>
+          </div>
         </div>
       </MobileLayout>
     );
@@ -51,7 +101,7 @@ export default function ProfilePage() {
         <div className="flex items-center">
           <div className="relative h-16 w-16 rounded-full overflow-hidden bg-white">
             <Image
-              src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix"
+              src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.name}`}
               alt={currentUser.name}
               fill
               className="object-cover"
